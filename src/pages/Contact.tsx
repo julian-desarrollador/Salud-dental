@@ -223,9 +223,16 @@ const Contact = () => {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                   </svg>
-                  3 de febrero 3490.<br />
-                  Barrio La Perla.<br />
-                  Mar del Plata.
+                  <a
+                    href="https://maps.app.goo.gl/JAwcA8i5ZAFmUNfb7"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="hover:text-primary transition-colors"
+                  >
+                    San Lorenzo 2908<br />
+                    (entre Hipólito Yrigoyen y La Rioja)<br />
+                    Mar del Plata.
+                  </a>
                 </p>
               </div>
               <div>
@@ -265,7 +272,7 @@ const Contact = () => {
           {/* Mapa */}
           <div className="rounded-lg overflow-hidden w-full h-96"> {/* Altura fija recomendada */}
             <iframe
-              src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d9066.65859809574!2d-57.560864720591674!3d-37.990704564746615!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x9584d955561af495%3A0xb8b6926726c5b2fa!2sSALUD%20DENTAL%20Mar%20del%20Plata!5e0!3m2!1ses!2sar!4v1763065830043!5m2!1ses!2sar"
+              src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d2180.4673536383034!2d-57.56182889714035!3d-38.009915326287235!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x9584d955561af495%3A0xb8b6926726c5b2fa!2sSALUD%20DENTAL%20Mar%20del%20Plata!5e0!3m2!1ses!2sar!4v1785450928199!5m2!1ses!2sar"
               width="100%"
               height="100%"
               style={{ border: 0 }}

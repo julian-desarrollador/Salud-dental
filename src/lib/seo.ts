@@ -30,12 +30,12 @@ export const routeSeo: Record<string, RouteSeo> = {
   '/contacto': {
     title: 'Contacto y ubicación | Salud Dental | Mar del Plata',
     description:
-      'Contactá al consultorio Salud Dental: 3 de Febrero 3490, La Perla, Mar del Plata. Teléfono, WhatsApp y formulario de consulta.',
+      'Contactá al consultorio Salud Dental: San Lorenzo 2908 (entre Hipólito Yrigoyen y La Rioja), Mar del Plata. Teléfono, WhatsApp y formulario de consulta.',
   },
   '/turnos': {
     title: 'Reservar turno odontológico | Dra. Jesica Goroso | Mar del Plata',
     description:
-      'Pedí tu turno con la Dra. Jesica Goroso por WhatsApp. Consultorio odontológico en Mar del Plata, Barrio La Perla.',
+      'Pedí tu turno con la Dra. Jesica Goroso por WhatsApp. Consultorio odontológico en San Lorenzo 2908, Mar del Plata.',
   },
 };
 

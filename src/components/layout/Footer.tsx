@@ -120,7 +120,14 @@ const Footer = () => {
                   <ul className="mt-4 space-y-3">
                     <li className="text-sm text-gray-500">
                       <span className="font-medium block">Dirección:</span>
-                      3 de febrero 3490, Barrio La Perla, Mar del Plata
+                      <a
+                        href="https://maps.app.goo.gl/JAwcA8i5ZAFmUNfb7"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="hover:text-primary transition-colors"
+                      >
+                        San Lorenzo 2908 (entre Hipólito Yrigoyen y La Rioja), Mar del Plata
+                      </a>
                     </li>
                     <li className="text-sm text-gray-500">
                       <span className="font-medium block">Teléfono:</span>
