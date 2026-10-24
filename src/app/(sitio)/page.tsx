@@ -1,0 +1,8 @@
+import Home from "@/components/site/Home";
+import { pageMetadata } from "@/lib/metadata";
+
+export const metadata = pageMetadata("/");
+
+export default function Page() {
+  return <Home />;
+}

@@ -1,5 +1,8 @@
+'use client'
+
 import { useState } from 'react'
-import { Link, useLocation } from 'react-router-dom'
+import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { trackReservarTurno } from '../../lib/analytics'
 
@@ -13,7 +16,7 @@ const navItems = [
 
 const Header = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
-  const location = useLocation()
+  const pathname = usePathname()
 
   const toggleMobileMenu = () => {
     setIsMobileMenuOpen(!isMobileMenuOpen)
@@ -23,7 +26,7 @@ const Header = () => {
     <header className="fixed inset-x-0 top-0 z-50 bg-white shadow-md">
       <nav className="flex items-center justify-between p-6 lg:px-8" aria-label="Global">
         <div className="flex lg:flex-1">
-          <Link to="/" className="-m-1.5 p-1.5">
+          <Link href="/" className="-m-1.5 p-1.5">
             <span className="sr-only">Dra. Jesica</span>
             <h1 className="text-lg font-semibold leading-6 text-gray-900">Od. Jesica Brenda Goroso</h1>
           </Link>
@@ -48,9 +51,9 @@ const Header = () => {
           {navItems.map((item) => (
             <Link
               key={item.path}
-              to={item.path}
+              href={item.path}
               className={`text-sm font-semibold leading-6 ${
-                location.pathname === item.path ? 'text-primary' : 'text-gray-900 hover:text-primary'
+                pathname === item.path ? 'text-primary' : 'text-gray-900 hover:text-primary'
               }`}
             >
               {item.name}
@@ -61,10 +64,10 @@ const Header = () => {
         {/* Right side - Turnos online link */}
         <div className="hidden lg:flex lg:flex-1 lg:justify-end">
           <Link
-            to="/turnos"
+            href="/turnos"
             onClick={() => trackReservarTurno('header_turnos_desktop')}
             className={`text-sm font-semibold leading-6 ${
-              location.pathname === '/turnos' ? 'text-primary' : 'text-gray-900 hover:text-primary'
+              pathname === '/turnos' ? 'text-primary' : 'text-gray-900 hover:text-primary'
             }`}
           >
             Turnos online <span aria-hidden="true">&rarr;</span>
@@ -87,7 +90,7 @@ const Header = () => {
             <div className="fixed inset-0 bg-black/30 backdrop-blur-sm" onClick={toggleMobileMenu} />
             <div className="fixed inset-y-0 right-0 z-50 w-full max-w-sm overflow-y-auto bg-white px-6 py-6 sm:max-w-sm sm:ring-1 sm:ring-gray-900/10">
               <div className="flex items-center justify-between">
-                <Link to="/" className="-m-1.5 p-1.5">
+                <Link href="/" className="-m-1.5 p-1.5">
                   <span className="sr-only">Dra. Jesica</span>
                   <h1 className="text-lg font-semibold leading-6 text-gray-900">Dra. Jesica</h1>
                 </Link>
@@ -108,9 +111,9 @@ const Header = () => {
                     {navItems.map((item) => (
                       <Link
                         key={item.path}
-                        to={item.path}
+                        href={item.path}
                         className={`-mx-3 block rounded-lg px-3 py-2 text-base font-semibold leading-7 ${
-                          location.pathname === item.path ? 'text-primary' : 'text-gray-900 hover:bg-gray-50'
+                          pathname === item.path ? 'text-primary' : 'text-gray-900 hover:bg-gray-50'
                         }`}
                         onClick={() => setIsMobileMenuOpen(false)}
                       >
@@ -120,9 +123,9 @@ const Header = () => {
                   </div>
                   <div className="py-6">
                     <Link
-                      to="/turnos"
+                      href="/turnos"
                       className={`-mx-3 block rounded-lg px-3 py-2.5 text-base font-semibold leading-7 ${
-                        location.pathname === '/turnos' ? 'text-primary' : 'text-gray-900 hover:bg-gray-50'
+                        pathname === '/turnos' ? 'text-primary' : 'text-gray-900 hover:bg-gray-50'
                       }`}
                       onClick={() => {
                         trackReservarTurno('header_turnos_mobile')

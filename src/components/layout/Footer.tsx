@@ -1,4 +1,6 @@
-import { Link } from 'react-router-dom'
+'use client'
+
+import Link from 'next/link'
 import { trackReservarTurno } from '../../lib/analytics'
 
 const Footer = () => {
@@ -35,37 +37,37 @@ const Footer = () => {
                   <h3 className="text-sm font-semibold text-gray-800 uppercase tracking-wider">Servicios</h3>
                   <ul className="mt-4 space-y-3">
                     <li>
-                      <Link to="/servicios" className="text-sm text-gray-500 hover:text-primary transition-colors">
+                      <Link href="/servicios" className="text-sm text-gray-500 hover:text-primary transition-colors">
                         Odontología general
                       </Link>
                     </li>
                     <li>
-                      <Link to="/servicios" className="text-sm text-gray-500 hover:text-primary transition-colors">
+                      <Link href="/servicios" className="text-sm text-gray-500 hover:text-primary transition-colors">
                         Niños y adolescentes
                       </Link>
                     </li>
                     <li>
-                      <Link to="/servicios" className="text-sm text-gray-500 hover:text-primary transition-colors">
+                      <Link href="/servicios" className="text-sm text-gray-500 hover:text-primary transition-colors">
                         Prótesis
                       </Link>
                     </li>
                     <li>
-                      <Link to="/servicios" className="text-sm text-gray-500 hover:text-primary transition-colors">
+                      <Link href="/servicios" className="text-sm text-gray-500 hover:text-primary transition-colors">
                         Ortodoncia y Ortopedia
                       </Link>
                     </li>
                     <li>
-                      <Link to="/servicios" className="text-sm text-gray-500 hover:text-primary transition-colors">
+                      <Link href="/servicios" className="text-sm text-gray-500 hover:text-primary transition-colors">
                         Blanqueamiento
                       </Link>
                     </li>
                     <li>
-                      <Link to="/servicios" className="text-sm text-gray-500 hover:text-primary transition-colors">
+                      <Link href="/servicios" className="text-sm text-gray-500 hover:text-primary transition-colors">
                         Estética facial
                       </Link>
                     </li>
                     <li>
-                      <Link to="/servicios" className="text-sm text-gray-500 hover:text-primary transition-colors">
+                      <Link href="/servicios" className="text-sm text-gray-500 hover:text-primary transition-colors">
                         Estética Dental
                       </Link>
                     </li>
@@ -76,18 +78,18 @@ const Footer = () => {
                   <h3 className="text-sm font-semibold text-gray-800 uppercase tracking-wider">Información</h3>
                   <ul className="mt-4 space-y-3">
                     <li>
-                      <Link to="/sobre-mi" className="text-sm text-gray-500 hover:text-primary transition-colors">
+                      <Link href="/sobre-mi" className="text-sm text-gray-500 hover:text-primary transition-colors">
                         Sobre mí
                       </Link>
                     </li>
                     <li>
-                      <Link to="/resultados" className="text-sm text-gray-500 hover:text-primary transition-colors">
+                      <Link href="/resultados" className="text-sm text-gray-500 hover:text-primary transition-colors">
                         Resultados
                       </Link>
                     </li>
                     <li>
                       <Link
-                        to="/turnos"
+                        href="/turnos"
                         onClick={() => trackReservarTurno('footer_reservar_turno')}
                         className="text-sm text-gray-500 hover:text-primary transition-colors"
                       >
@@ -95,7 +97,7 @@ const Footer = () => {
                       </Link>
                     </li>
                     <li>
-                      <Link to="/contacto" className="text-sm text-gray-500 hover:text-primary transition-colors">
+                      <Link href="/contacto" className="text-sm text-gray-500 hover:text-primary transition-colors">
                         Contacto
                       </Link>
                     </li>

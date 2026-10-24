@@ -1,0 +1,68 @@
+@import "tailwindcss";
+
+:root {
+  --cream: #f4f8fb;
+  --sand: #d5e4f2;
+  --sage: #7eb0d6;
+  --forest: #1a4f7a;
+  --gold: #2c7bb7;
+  --gold-ink: #0f2236;
+  --muted: #5c6b78;
+  --panel: #eef4f9;
+}
+
+@theme inline {
+  --color-primary: #2c7bb7;
+  --color-cream: var(--cream);
+  --color-sand: var(--sand);
+  --color-sage: var(--sage);
+  --color-forest: var(--forest);
+  --color-gold: var(--gold);
+  --color-gold-ink: var(--gold-ink);
+  --color-muted: var(--muted);
+  --color-panel: var(--panel);
+  --font-serif: var(--font-cormorant), ui-serif, serif;
+}
+
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 6rem;
+}
+
+body {
+  background: #ffffff;
+  color: #111827;
+}
+
+::selection {
+  background: #1a4f7a;
+  color: #f4f8fb;
+}
+
+:focus-visible {
+  outline: 2px solid var(--forest);
+  outline-offset: 3px;
+}
+
+.consultorio-ui {
+  min-height: 100vh;
+  background: var(--cream);
+  color: var(--forest);
+  font-family: var(--font-dm-sans), ui-sans-serif, system-ui, sans-serif;
+  font-size: 1.125rem;
+  line-height: 1.5;
+}
+
+.consultorio-ui :is(
+  button:not(:disabled),
+  select,
+  summary,
+  input[type="checkbox"],
+  input[type="radio"],
+  input[type="file"],
+  label:has(input[type="checkbox"]),
+  label:has(input[type="radio"]),
+  label:has(input[type="file"])
+) {
+  cursor: pointer;
+}

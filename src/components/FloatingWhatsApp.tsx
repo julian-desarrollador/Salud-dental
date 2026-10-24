@@ -1,3 +1,5 @@
+'use client'
+
 import { trackWhatsApp } from '../lib/analytics';
 
 const WHATSAPP_URL =

@@ -1,20 +1,25 @@
+'use client'
+
 import { useEffect } from 'react'
-import { useLocation } from 'react-router-dom'
+import { usePathname, useSearchParams } from 'next/navigation'
 
 const GA_MEASUREMENT_ID = 'G-X0ZLVK8D41'
 
 export default function GoogleAnalytics() {
-  const location = useLocation()
+  const pathname = usePathname() ?? '/'
+  const searchParams = useSearchParams()
+  const search = searchParams?.toString() ?? ''
 
   useEffect(() => {
-    const gtag = (window as any).gtag
+    if (pathname.startsWith('/consultorio')) return
+    const gtag = (window as { gtag?: (...args: unknown[]) => void }).gtag
 
     if (typeof gtag === 'function') {
       gtag('config', GA_MEASUREMENT_ID, {
-        page_path: location.pathname + location.search,
+        page_path: search ? `${pathname}?${search}` : pathname,
       })
     }
-  }, [location.pathname, location.search])
+  }, [pathname, search])
 
   return null
 }
