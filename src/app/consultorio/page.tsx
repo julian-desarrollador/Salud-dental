@@ -15,6 +15,11 @@ const doors = [
     text: "Fichas, visitas y dientes",
   },
   {
+    href: "/consultorio/preguntas",
+    title: "Mis preguntas",
+    text: "Lo que le preguntás a cada paciente sobre su salud",
+  },
+  {
     href: "/consultorio/prestaciones",
     title: "Mis precios",
     text: "Lo que cobrás por cada práctica",

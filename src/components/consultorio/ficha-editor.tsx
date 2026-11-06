@@ -3,13 +3,14 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { crearEnlaceFirma, deletePatient, guardarFirma, quitarArchivoFicha, savePatientFields, subirArchivoFicha } from "@/app/consultorio/actions";
+import { AntecedentesMedicos } from "@/components/consultorio/antecedentes-medicos";
 import { CalendarioCampo } from "@/components/consultorio/calendario-campo";
 import { Confirmacion } from "@/components/consultorio/confirmacion";
 import { OdontogramaLectura } from "@/components/consultorio/firma-pad";
 import { consentSheets, generalConsent } from "@/lib/consultorio/consents";
 import { aWhatsapp, telefonoValido } from "@/lib/consultorio/agenda-horario";
-import { fechaDeInicio, fechaEnPalabras, todayInArgentina } from "@/lib/consultorio/fecha";
-import { allTeeth, toothMarks, type ChartFile, type Patient, type ToothMark } from "@/lib/consultorio/types";
+import { edadEn, edadEscrita, fechaDeInicio, fechaEnPalabras, todayInArgentina } from "@/lib/consultorio/fecha";
+import { allTeeth, toothMarks, type ChartFile, type Patient, type PreguntaMedica, type ToothMark } from "@/lib/consultorio/types";
 
 const tabs = [
   { id: "datos", label: "Datos" },
@@ -41,10 +42,13 @@ function ready(patient: Patient): Patient {
     ...patient,
     document: patient.document ?? "",
     birthDate: patient.birthDate ?? "",
+    age: patient.age ?? "",
+    ageSetOn: patient.ageSetOn ?? "",
     contact: patient.contact ?? "",
     address: patient.address ?? "",
     familyContact: patient.familyContact ?? "",
     background: patient.background ?? "",
+    medicalAnswers: patient.medicalAnswers ?? {},
     reason: patient.reason ?? "",
     startedOn: fechaDeInicio(patient),
     evolution: patient.evolution ?? [],
@@ -59,10 +63,13 @@ function draftOf(patient: Patient) {
     name: patient.name,
     document: patient.document ?? "",
     birthDate: patient.birthDate ?? "",
+    age: patient.age ?? "",
+    ageSetOn: patient.ageSetOn ?? "",
     contact: patient.contact,
     address: patient.address ?? "",
     familyContact: patient.familyContact ?? "",
     background: patient.background,
+    medicalAnswers: patient.medicalAnswers ?? {},
     reason: patient.reason,
     startedOn: fechaDeInicio(patient),
     evolution: patient.evolution,
@@ -72,10 +79,12 @@ function draftOf(patient: Patient) {
 
 export function FichaEditor({
   initial,
+  preguntas,
   volver,
   enlaceInicial,
 }: {
   initial: Patient;
+  preguntas: PreguntaMedica[];
   volver: string;
   enlaceInicial: string;
 }) {
@@ -128,7 +137,10 @@ export function FichaEditor({
   }, [foto]);
 
   useEffect(() => {
-    if (draft === saved.current) return;
+    if (draft === saved.current) {
+      setNotice((current) => (current === "Guardando…" ? "" : current));
+      return;
+    }
     if (!patient.name.trim()) {
       setNotice("Escribí el nombre antes de guardar.");
       return;
@@ -174,8 +186,8 @@ export function FichaEditor({
         setNotice(result.error);
         return;
       }
-      setPatient(result.patient);
-      saved.current = draftOf(result.patient);
+      setPatient(ready(result.patient));
+      saved.current = draftOf(ready(result.patient));
       setNotice("Guardado");
     } catch {
       setNotice("No se pudo subir el archivo. Probá de nuevo.");
@@ -197,8 +209,8 @@ export function FichaEditor({
         setNotice(result.error);
         return;
       }
-      setPatient(result.patient);
-      saved.current = draftOf(result.patient);
+      setPatient(ready(result.patient));
+      saved.current = draftOf(ready(result.patient));
       setNotice("Guardado");
     } catch {
       setNotice("No se pudo subir el archivo. Probá de nuevo.");
@@ -213,12 +225,46 @@ export function FichaEditor({
       setNotice(result.error);
       return;
     }
-    setPatient(result.patient);
-    saved.current = draftOf(result.patient);
+    setPatient(ready(result.patient));
+    saved.current = draftOf(ready(result.patient));
     setNotice("Guardado");
   }
 
   const selectedMark = selected ? (patient.teeth[selected] ?? "sana") : null;
+  const edadCalculada = edadEn(patient.birthDate);
+  const edadVisible = patient.age || (edadCalculada === null ? "" : String(edadCalculada));
+
+  function guardarEdad(input: HTMLInputElement) {
+    const escrita = input.value.trim();
+    if (!escrita || escrita === String(edadCalculada)) {
+      setPatient((current) => ({ ...current, age: "", ageSetOn: "" }));
+      input.value = edadCalculada === null ? "" : String(edadCalculada);
+      return;
+    }
+    const age = edadEscrita(escrita);
+    if (!age) {
+      setNotice("Escribí la edad en años, de 0 a 130.");
+      input.value = edadVisible;
+      return;
+    }
+    input.value = age;
+    if (age === patient.age) return;
+    setPatient((current) => ({ ...current, age, ageSetOn: todayInArgentina() }));
+  }
+
+  function antecedentes(plegado: boolean) {
+    return (
+      <AntecedentesMedicos
+        preguntas={preguntas}
+        respuestas={patient.medicalAnswers}
+        background={patient.background}
+        patientId={patient.id}
+        plegado={plegado}
+        onRespuestas={(medicalAnswers) => setPatient((current) => ({ ...current, medicalAnswers }))}
+        onBackground={(background) => setPatient((current) => ({ ...current, background }))}
+      />
+    );
+  }
 
   return (
     <div>
@@ -271,10 +317,47 @@ export function FichaEditor({
             <CalendarioCampo
               nacimiento
               value={patient.birthDate ?? ""}
-              onChange={(birthDate) => setPatient({ ...patient, birthDate })}
+              onChange={(birthDate) =>
+                setPatient((current) =>
+                  birthDate === current.birthDate ? current : { ...current, birthDate, age: "", ageSetOn: "" },
+                )
+              }
               className="mt-2"
             />
           </label>
+          <div>
+            <label className="block">
+              Edad (años)
+              <input
+                key={`edad-${edadVisible}`}
+                defaultValue={edadVisible}
+                inputMode="numeric"
+                maxLength={3}
+                onBlur={(event) => guardarEdad(event.target)}
+                className="mt-2 min-h-12 w-full rounded-xl border border-sand bg-white px-4 text-lg"
+              />
+            </label>
+            {patient.age ? (
+              <div className="mt-1 flex flex-wrap items-center gap-x-4 print:hidden">
+                <p className="text-muted">
+                  {patient.ageSetOn ? `Escrita a mano el ${fechaEnPalabras(patient.ageSetOn)}.` : "Escrita a mano."}
+                </p>
+                {edadCalculada !== null ? (
+                  <button
+                    type="button"
+                    className="inline-flex min-h-10 items-center text-forest underline underline-offset-4"
+                    onClick={() => setPatient((current) => ({ ...current, age: "", ageSetOn: "" }))}
+                  >
+                    Usar la calculada
+                  </button>
+                ) : null}
+              </div>
+            ) : (
+              <p className="mt-1 text-muted print:hidden">
+                {edadCalculada !== null ? "Calculada con la fecha de nacimiento." : "Cargá la fecha de nacimiento o escribí la edad."}
+              </p>
+            )}
+          </div>
           <label className="block">
             Teléfono
             <input
@@ -302,15 +385,7 @@ export function FichaEditor({
             />
           </label>
           <p className="text-forest">Ficha empezada el {fechaEnPalabras(fechaDeInicio(patient))}</p>
-          <label className="block">
-            Antecedentes
-            <textarea
-              value={patient.background}
-              onChange={(event) => setPatient({ ...patient, background: event.target.value })}
-              rows={4}
-              className="mt-2 w-full rounded-xl border border-sand bg-white px-4 py-3 text-lg"
-            />
-          </label>
+          {antecedentes(false)}
           <label className="block">
             Motivo de consulta
             <textarea
@@ -384,6 +459,7 @@ export function FichaEditor({
 
       <section className={tab === "dientes" ? "mt-8" : "mt-8 hidden print:block"}>
         <h2 className="font-serif text-3xl">Dientes</h2>
+        <div className="mt-6">{antecedentes(true)}</div>
         <div className="mt-6 grid gap-6 md:grid-cols-2">
           {quadrants.map((quadrant) => (
             <div key={quadrant.title}>

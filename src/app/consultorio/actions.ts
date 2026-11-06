@@ -17,6 +17,7 @@ import {
   removePatientRecord,
   saveFeeRecord,
   savePatientRecord,
+  savePreguntasRecord,
   saveSignature,
   signWithConsentLink,
 } from "@/lib/consultorio/store";
@@ -59,6 +60,16 @@ export async function savePatientFields(input: unknown): Promise<{ error: string
   await requireSession();
   try {
     await savePatientRecord(input);
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "No se pudo guardar." };
+  }
+  return { ok: true };
+}
+
+export async function savePreguntasMedicas(input: unknown): Promise<{ error: string } | { ok: true }> {
+  await requireSession();
+  try {
+    await savePreguntasRecord(input);
   } catch (error) {
     return { error: error instanceof Error ? error.message : "No se pudo guardar." };
   }

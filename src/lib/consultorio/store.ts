@@ -1,9 +1,10 @@
 import { Binary, type Collection } from "mongodb";
 import { consultorioDb } from "./db";
 import { GENERAL_CONSENT_VERSION } from "./consents";
-import { fechaDeInicio, isIsoDate, todayInArgentina } from "./fecha";
+import { edadEscrita, fechaDeInicio, isIsoDate, todayInArgentina } from "./fecha";
 import { claveNombre } from "./nombre";
 import { seedFees } from "./fees";
+import { preguntasIniciales, sanitizePreguntas, sanitizeRespuestas } from "./preguntas";
 import {
   allTeeth,
   toothMarks,
@@ -12,6 +13,7 @@ import {
   type FeeItem,
   type ChartFile,
   type Patient,
+  type PreguntaMedica,
   type ConsentSource,
   type SignedConsent,
   type Store,
@@ -20,6 +22,9 @@ import {
 
 type FeeDoc = FeeItem & { order: number };
 type Adjunto = { id: string; mime: string; data: Binary };
+type PreguntasDoc = { id: string; questions: PreguntaMedica[]; updatedAt: string };
+
+const LISTA_PREGUNTAS = "principal";
 
 let writeChain: Promise<unknown> = Promise.resolve();
 let prepared: Promise<void> | undefined;
@@ -91,10 +96,13 @@ export function emptyPatient(name: string): Patient {
     name: clip(name, 120),
     document: "",
     birthDate: "",
+    age: "",
+    ageSetOn: "",
     contact: "",
     address: "",
     familyContact: "",
     background: "",
+    medicalAnswers: {},
     reason: "",
     startedOn: todayInArgentina(),
     evolution: [],
@@ -139,15 +147,21 @@ export function sanitizePatient(input: unknown): Patient | null {
       })
     : [];
 
+  const age = edadEscrita(raw.age);
+  const ageSetOn = clip(raw.ageSetOn, 10);
+
   return {
     id: clip(raw.id, 80),
     name,
     document: clip(raw.document, 32),
     birthDate: isIsoDate(clip(raw.birthDate, 10)) ? clip(raw.birthDate, 10) : "",
+    age,
+    ageSetOn: age && isIsoDate(ageSetOn) ? ageSetOn : "",
     contact: clip(raw.contact, 200),
     address: clip(raw.address, 200),
     familyContact: clip(raw.familyContact, 200),
     background: clip(raw.background, 8000),
+    medicalAnswers: sanitizeRespuestas(raw.medicalAnswers),
     reason: clip(raw.reason, 4000),
     startedOn: fechaDeInicio({ ...raw, evolution }),
     evolution,
@@ -195,6 +209,10 @@ async function adjuntos(): Promise<Collection<Adjunto>> {
   return (await consultorioDb()).collection<Adjunto>("adjuntos");
 }
 
+async function listasDePreguntas(): Promise<Collection<PreguntasDoc>> {
+  return (await consultorioDb()).collection<PreguntasDoc>("preguntas_medicas");
+}
+
 type ConsentLinkDoc = {
   token: string;
   patientId: string;
@@ -226,7 +244,13 @@ async function prepare() {
         database.collection("adjuntos").createIndex({ id: 1 }, { unique: true }),
         database.collection("consent_links").createIndex({ token: 1 }, { unique: true }),
         database.collection("consent_links").createIndex({ patientId: 1 }),
+        database.collection("preguntas_medicas").createIndex({ id: 1 }, { unique: true }),
       ]);
+      await database.collection<PreguntasDoc>("preguntas_medicas").updateOne(
+        { id: LISTA_PREGUNTAS },
+        { $setOnInsert: { questions: preguntasIniciales, updatedAt: new Date().toISOString() } },
+        { upsert: true },
+      );
       const fees = database.collection<FeeDoc>("fees");
       const count = await fees.countDocuments({}, { limit: 1 });
       if (count > 0) return;
@@ -265,7 +289,12 @@ async function findPatient(id: string) {
   const doc = await (await patients()).findOne({ id }, { projection: { _id: 0 } });
   if (!doc) return null;
   const patient = plain(doc);
-  return { ...patient, consents: patient.consents ?? [], files: patient.files ?? [] };
+  return {
+    ...patient,
+    medicalAnswers: patient.medicalAnswers ?? {},
+    consents: patient.consents ?? [],
+    files: patient.files ?? [],
+  };
 }
 
 export async function fichasConNombre(name: string) {
@@ -399,6 +428,25 @@ export function savePatientRecord(input: unknown) {
     };
     await (await patients()).replaceOne({ id: next.id }, { ...next });
     return next;
+  });
+}
+
+export async function readPreguntasMedicas(): Promise<PreguntaMedica[]> {
+  await prepare();
+  const doc = await (await listasDePreguntas()).findOne({ id: LISTA_PREGUNTAS }, { projection: { _id: 0 } });
+  return doc?.questions ?? [];
+}
+
+export function savePreguntasRecord(input: unknown) {
+  return turn(async () => {
+    await prepare();
+    const questions = sanitizePreguntas(input);
+    await (await listasDePreguntas()).updateOne(
+      { id: LISTA_PREGUNTAS },
+      { $set: { questions, updatedAt: new Date().toISOString() } },
+      { upsert: true },
+    );
+    return questions;
   });
 }
 

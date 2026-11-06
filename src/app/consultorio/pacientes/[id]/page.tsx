@@ -1,16 +1,9 @@
 import { notFound } from "next/navigation";
 import { FichaEditor } from "@/components/consultorio/ficha-editor";
 import { ConsultorioShell } from "@/components/consultorio/shell";
+import { destinoInterno } from "@/lib/consultorio/destino";
 import { requireSession } from "@/lib/consultorio/guard";
-import { activeConsentLink, readStore } from "@/lib/consultorio/store";
-
-function destinoInterno(value: string | string[] | undefined) {
-  const pedido = Array.isArray(value) ? value[0] : value;
-  if (!pedido || !pedido.startsWith("/consultorio/") || pedido.startsWith("//") || pedido.includes("\\")) {
-    return "/consultorio/pacientes";
-  }
-  return pedido;
-}
+import { activeConsentLink, readPreguntasMedicas, readStore } from "@/lib/consultorio/store";
 
 export default async function FichaPage(props: PageProps<"/consultorio/pacientes/[id]">) {
   await requireSession();
@@ -19,11 +12,16 @@ export default async function FichaPage(props: PageProps<"/consultorio/pacientes
   const store = await readStore();
   const patient = store.patients.find((item) => item.id === id);
   if (!patient) notFound();
-  const token = await activeConsentLink(patient.id);
+  const [token, preguntas] = await Promise.all([activeConsentLink(patient.id), readPreguntasMedicas()]);
 
   return (
     <ConsultorioShell current="/consultorio/pacientes">
-      <FichaEditor initial={patient} volver={destinoInterno(query.volver)} enlaceInicial={token ? `/firmar/${token}` : ""} />
+      <FichaEditor
+        initial={patient}
+        preguntas={preguntas}
+        volver={destinoInterno(query.volver)}
+        enlaceInicial={token ? `/firmar/${token}` : ""}
+      />
     </ConsultorioShell>
   );
 }

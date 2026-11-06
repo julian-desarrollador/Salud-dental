@@ -26,6 +26,21 @@ export function fechaEnPalabras(iso: string) {
   }).format(new Date(Date.UTC(year, month - 1, dayOfMonth)));
 }
 
+export function edadEn(birthDate: string, today = todayInArgentina()) {
+  if (!isIsoDate(birthDate) || !isIsoDate(today) || birthDate > today) return null;
+  const [birthYear, birthMonth, birthDay] = birthDate.split("-").map(Number);
+  const [year, month, dayOfMonth] = today.split("-").map(Number);
+  const yaCumplio = month > birthMonth || (month === birthMonth && dayOfMonth >= birthDay);
+  return year - birthYear - (yaCumplio ? 0 : 1);
+}
+
+export function edadEscrita(value: unknown) {
+  const text = String(value ?? "").trim();
+  if (!/^\d{1,3}$/.test(text)) return "";
+  const age = Number(text);
+  return age <= 130 ? String(age) : "";
+}
+
 export function fechaDeInicio(patient: {
   startedOn?: string;
   evolution: { date: string }[];

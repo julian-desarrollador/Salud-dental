@@ -54,15 +54,39 @@ export type ChartFile = {
   addedOn: string;
 };
 
+export type TipoPregunta = "sino" | "texto";
+
+export type RespuestaSiNo = "si" | "no";
+
+export type PreguntaMedica = {
+  id: string;
+  text: string;
+  kind: TipoPregunta;
+  showWhen?: RespuestaSiNo;
+  children: PreguntaMedica[];
+};
+
+export type RespuestaMedica = {
+  question: string;
+  kind: TipoPregunta;
+  value: string;
+  answeredOn: string;
+};
+
+export type RespuestasMedicas = Record<string, RespuestaMedica>;
+
 export type Patient = {
   id: string;
   name: string;
   document: string;
   birthDate: string;
+  age: string;
+  ageSetOn: string;
   contact: string;
   address: string;
   familyContact: string;
   background: string;
+  medicalAnswers: RespuestasMedicas;
   reason: string;
   startedOn: string;
   evolution: Evolution[];
