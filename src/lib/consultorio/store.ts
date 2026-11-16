@@ -5,6 +5,8 @@ import { edadEscrita, fechaDeInicio, isIsoDate, todayInArgentina } from "./fecha
 import { claveNombre } from "./nombre";
 import { seedFees } from "./fees";
 import { preguntasIniciales, sanitizePreguntas, sanitizeRespuestas } from "./preguntas";
+import { catalogoInicial, piezasDe, piezasDesdeLegado, sanitizeCatalogo, sanitizePiezas, sanitizePlan } from "./odontograma";
+import { sanitizePrecios, sanitizePresupuestos } from "./presupuesto";
 import {
   allTeeth,
   toothMarks,
@@ -13,7 +15,9 @@ import {
   type FeeItem,
   type ChartFile,
   type Patient,
+  type Piezas,
   type PreguntaMedica,
+  type PrestacionCatalogo,
   type ConsentSource,
   type SignedConsent,
   type Store,
@@ -21,10 +25,15 @@ import {
 } from "./types";
 
 type FeeDoc = FeeItem & { order: number };
+
+const MIGRACION_PRECIOS = "precios-sin-colegio";
 type Adjunto = { id: string; mime: string; data: Binary };
 type PreguntasDoc = { id: string; questions: PreguntaMedica[]; updatedAt: string };
+type CatalogoDoc = { id: string; items: PrestacionCatalogo[]; updatedAt: string };
+type ToothMap = NonNullable<Patient["teeth"]>;
 
 const LISTA_PREGUNTAS = "principal";
+const LISTA_PRESTACIONES = "principal";
 
 let writeChain: Promise<unknown> = Promise.resolve();
 let prepared: Promise<void> | undefined;
@@ -40,14 +49,14 @@ function turn<T>(task: () => Promise<T>) {
 
 const marks = new Set<string>(toothMarks.map((mark) => mark.id));
 const teeth = new Set<string>(allTeeth);
-const kinds = new Set<ConsentKind>(["general", "implante", "cirugia", "endodoncia"]);
+const kinds = new Set<ConsentKind>(["general", "ortopedia", "ortodoncia", "endodoncia", "implante", "cirugia"]);
 
 function clip(value: unknown, max: number) {
   return String(value ?? "").trim().slice(0, max);
 }
 
-function toothMapOf(input: unknown): Patient["teeth"] {
-  const toothMap: Patient["teeth"] = {};
+function toothMapOf(input: unknown): ToothMap {
+  const toothMap: ToothMap = {};
   if (!input || typeof input !== "object") return toothMap;
   for (const [tooth, mark] of Object.entries(input)) {
     if (teeth.has(tooth) && marks.has(String(mark)) && mark !== "sana") {
@@ -80,14 +89,10 @@ function consentOf(item: Partial<SignedConsent>): SignedConsent | null {
   if (item.teethSnapshot && typeof item.teethSnapshot === "object") {
     consent.teethSnapshot = toothMapOf(item.teethSnapshot);
   }
+  if (item.piezasSnapshot && typeof item.piezasSnapshot === "object") {
+    consent.piezasSnapshot = sanitizePiezas(item.piezasSnapshot);
+  }
   return consent;
-}
-
-function money(value: unknown) {
-  if (value == null || value === "") return null;
-  const number = typeof value === "number" ? value : Number(String(value).replace(/\./g, "").replace(",", "."));
-  if (!Number.isFinite(number) || number < 0 || number > 100_000_000) return null;
-  return Math.round(number);
 }
 
 export function emptyPatient(name: string): Patient {
@@ -106,7 +111,9 @@ export function emptyPatient(name: string): Patient {
     reason: "",
     startedOn: todayInArgentina(),
     evolution: [],
-    teeth: {},
+    piezas: {},
+    plan: [],
+    presupuestos: [],
     consents: [],
     files: [],
     updatedAt: new Date().toISOString(),
@@ -137,7 +144,8 @@ export function sanitizePatient(input: unknown): Patient | null {
       })
     : [];
 
-  const toothMap = toothMapOf(raw.teeth);
+  const piezas = sanitizePiezas(raw.piezas ?? piezasDesdeLegado(raw.teeth));
+  const plan = sanitizePlan(raw.plan);
 
   const consents: SignedConsent[] = Array.isArray(raw.consents)
     ? raw.consents.slice(0, 50).flatMap((item) => {
@@ -165,31 +173,13 @@ export function sanitizePatient(input: unknown): Patient | null {
     reason: clip(raw.reason, 4000),
     startedOn: fechaDeInicio({ ...raw, evolution }),
     evolution,
-    teeth: toothMap,
+    piezas,
+    plan,
+    presupuestos: sanitizePresupuestos(raw.presupuestos),
     consents,
     files: [],
     updatedAt: new Date().toISOString(),
   };
-}
-
-export function sanitizeFees(input: unknown): FeeItem[] {
-  if (!Array.isArray(input)) return [];
-  return input.slice(0, 400).flatMap((item) => {
-    if (!item || typeof item !== "object") return [];
-    const name = clip(item.name, 180);
-    if (!name) return [];
-    return [
-      {
-        id: clip(item.id, 80) || crypto.randomUUID(),
-        code: clip(item.code, 20),
-        chapter: clip(item.chapter, 80) || "Consultorio",
-        name,
-        minimum: money(item.minimum),
-        price: money(item.price),
-        offered: item.offered !== false,
-      },
-    ];
-  });
 }
 
 function plain<T extends { _id?: unknown }>(doc: T): Omit<T, "_id"> {
@@ -211,6 +201,10 @@ async function adjuntos(): Promise<Collection<Adjunto>> {
 
 async function listasDePreguntas(): Promise<Collection<PreguntasDoc>> {
   return (await consultorioDb()).collection<PreguntasDoc>("preguntas_medicas");
+}
+
+async function catalogos(): Promise<Collection<CatalogoDoc>> {
+  return (await consultorioDb()).collection<CatalogoDoc>("prestaciones_odontograma");
 }
 
 type ConsentLinkDoc = {
@@ -245,26 +239,36 @@ async function prepare() {
         database.collection("consent_links").createIndex({ token: 1 }, { unique: true }),
         database.collection("consent_links").createIndex({ patientId: 1 }),
         database.collection("preguntas_medicas").createIndex({ id: 1 }, { unique: true }),
+        database.collection("prestaciones_odontograma").createIndex({ id: 1 }, { unique: true }),
       ]);
-      await database.collection<PreguntasDoc>("preguntas_medicas").updateOne(
-        { id: LISTA_PREGUNTAS },
-        { $setOnInsert: { questions: preguntasIniciales, updatedAt: new Date().toISOString() } },
-        { upsert: true },
-      );
-      const fees = database.collection<FeeDoc>("fees");
-      const count = await fees.countDocuments({}, { limit: 1 });
-      if (count > 0) return;
-      const seed = seedFees();
-      if (seed.length === 0) return;
-      await fees.bulkWrite(
-        seed.map((fee, order) => ({
-          updateOne: {
-            filter: { id: fee.id },
-            update: { $setOnInsert: { ...fee, order } },
-            upsert: true,
-          },
-        })),
-      );
+      await Promise.all([
+        database.collection<PreguntasDoc>("preguntas_medicas").updateOne(
+          { id: LISTA_PREGUNTAS },
+          { $setOnInsert: { questions: preguntasIniciales, updatedAt: new Date().toISOString() } },
+          { upsert: true },
+        ),
+        database.collection<CatalogoDoc>("prestaciones_odontograma").updateOne(
+          { id: LISTA_PRESTACIONES },
+          { $setOnInsert: { items: catalogoInicial, updatedAt: new Date().toISOString() } },
+          { upsert: true },
+        ),
+      ]);
+      // La lista del Colegio ya no se siembra. Una sola vez, se borran las filas del Colegio
+      // que Jesica no tocó (precio igual al mínimo) o marcó como "No la hago".
+      const migraciones = database.collection<{ id: string; doneAt: string }>("migraciones");
+      if (!(await migraciones.findOne({ id: MIGRACION_PRECIOS }))) {
+        const colegio = seedFees();
+        if (colegio.length > 0) {
+          await database.collection("fees").deleteMany({
+            $or: colegio.map((fee) => ({ id: fee.id, $or: [{ price: fee.minimum }, { offered: false }] })),
+          });
+        }
+        await migraciones.updateOne(
+          { id: MIGRACION_PRECIOS },
+          { $setOnInsert: { doneAt: new Date().toISOString() } },
+          { upsert: true },
+        );
+      }
     })().catch((error: unknown) => {
       prepared = undefined;
       throw error;
@@ -277,11 +281,11 @@ export async function readStore(): Promise<Store> {
   await prepare();
   const [patientDocs, feeDocs] = await Promise.all([
     (await patients()).find({}, { projection: { _id: 0 } }).toArray(),
-    (await fees()).find({}, { projection: { _id: 0 } }).sort({ order: 1, code: 1 }).toArray(),
+    (await fees()).find({}, { projection: { _id: 0 } }).sort({ order: 1, id: 1 }).toArray(),
   ]);
   return {
     patients: patientDocs.map((item) => plain(item)),
-    fees: feeDocs.map(({ order: _order, ...fee }) => plain(fee)),
+    fees: feeDocs.map((fee) => ({ id: fee.id, chapter: fee.chapter ?? "", name: fee.name, price: fee.price ?? null })),
   };
 }
 
@@ -450,17 +454,40 @@ export function savePreguntasRecord(input: unknown) {
   });
 }
 
-export function saveFeeRecord(input: unknown) {
+export async function readCatalogoOdontograma(): Promise<PrestacionCatalogo[]> {
+  await prepare();
+  const doc = await (await catalogos()).findOne({ id: LISTA_PRESTACIONES }, { projection: { _id: 0 } });
+  return doc?.items ?? [];
+}
+
+export function saveCatalogoRecord(input: unknown) {
   return turn(async () => {
     await prepare();
-    const fee = sanitizeFees([input])[0];
-    if (!fee) throw new Error("Revisá el nombre de la práctica.");
+    const items = sanitizeCatalogo(input);
+    await (await catalogos()).updateOne(
+      { id: LISTA_PRESTACIONES },
+      { $set: { items, updatedAt: new Date().toISOString() } },
+      { upsert: true },
+    );
+    return items;
+  });
+}
+
+/** Guarda la lista de precios completa, en orden, y borra las filas que ya no están. */
+export function saveFeeList(input: unknown) {
+  return turn(async () => {
+    await prepare();
+    const items = sanitizePrecios(input);
     const collection = await fees();
-    const current = await collection.findOne({ id: fee.id }, { projection: { order: 1 } });
-    const order =
-      current?.order ?? ((await collection.find().sort({ order: -1 }).limit(1).next())?.order ?? -1) + 1;
-    await collection.updateOne({ id: fee.id }, { $set: { ...fee, order } }, { upsert: true });
-    return fee;
+    if (items.length > 0) {
+      await collection.bulkWrite(
+        items.map((item, order) => ({
+          replaceOne: { filter: { id: item.id }, replacement: { ...item, order }, upsert: true },
+        })),
+      );
+    }
+    await collection.deleteMany({ id: { $nin: items.map((item) => item.id) } });
+    return items;
   });
 }
 
@@ -472,7 +499,7 @@ async function writeSignature(
     source: ConsentSource;
     aclaracion?: string;
     textVersion?: string;
-    teethSnapshot?: Patient["teeth"];
+    piezasSnapshot?: Piezas;
   },
 ) {
   const uploaded = await saveUpload(file);
@@ -495,7 +522,7 @@ async function writeSignature(
   const textVersion = clip(extra.textVersion, 40);
   if (textVersion) consent.textVersion = textVersion;
   if (extra.source === "pantalla") {
-    consent.teethSnapshot = toothMapOf(extra.teethSnapshot ?? {});
+    consent.piezasSnapshot = sanitizePiezas(extra.piezasSnapshot ?? {});
   }
   const next: Patient = {
     ...patient,
@@ -514,7 +541,7 @@ export function saveSignature(
     source: ConsentSource;
     aclaracion?: string;
     textVersion?: string;
-    teethSnapshot?: Patient["teeth"];
+    piezasSnapshot?: Piezas;
   } = { source: "papel" },
 ) {
   return turn(async () => {
@@ -553,7 +580,7 @@ export async function consentLinkView(token: string) {
   if (!enlaceVigente(link)) return null;
   const patient = await findPatient(link.patientId);
   if (!patient) return null;
-  return { name: patient.name, teeth: patient.teeth ?? {} };
+  return { name: patient.name, piezas: piezasDe(patient) };
 }
 
 export function signWithConsentLink(token: string, aclaracion: string, file: File) {
@@ -569,7 +596,7 @@ export function signWithConsentLink(token: string, aclaracion: string, file: Fil
       source: "pantalla",
       aclaracion,
       textVersion: GENERAL_CONSENT_VERSION,
-      teethSnapshot: patient.teeth ?? {},
+      piezasSnapshot: piezasDe(patient),
     });
     await links.updateOne({ token, usedAt: null }, { $set: { usedAt: new Date().toISOString() } });
   });

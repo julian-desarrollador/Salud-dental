@@ -5,7 +5,7 @@ const links = [
   { href: "/consultorio", label: "Inicio", short: "Inicio", icon: "home" },
   { href: "/consultorio/agenda", label: "Agenda", short: "Agenda", icon: "calendar" },
   { href: "/consultorio/pacientes", label: "Pacientes", short: "Pacientes", icon: "person" },
-  { href: "/consultorio/prestaciones", label: "Mis precios", short: "Precios", icon: "tag" },
+  { href: "/consultorio/presupuesto", label: "Presupuesto", short: "Presupuesto", icon: "tag" },
   { href: "/consultorio/consentimientos", label: "Hojas para firmar", short: "Firmar", icon: "sheet" },
 ] as const;
 
@@ -78,8 +78,9 @@ export function ConsultorioShell({
   children: React.ReactNode;
   current?: string;
 }) {
+  // Abajo queda lugar para la barra de navegación del celular y para el aviso fijo de "Guardado".
   return (
-    <div className="min-h-full pb-[calc(5.5rem+env(safe-area-inset-bottom))] md:pb-0">
+    <div className="min-h-full pb-[calc(9.5rem+env(safe-area-inset-bottom))] md:pb-20 print:pb-0">
       <header className="border-b border-sand bg-cream px-6 py-4 print:hidden">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4">
           <p className="font-serif text-3xl leading-none text-forest">Consultorio</p>
@@ -119,7 +120,7 @@ export function ConsultorioShell({
                 <Link
                   href={link.href}
                   aria-current={active ? "page" : undefined}
-                  className={`flex h-16 flex-col items-center justify-center gap-1 whitespace-nowrap text-sm ${active ? "text-forest" : "text-muted"}`}
+                  className={`flex h-16 flex-col items-center justify-center gap-1 whitespace-nowrap text-[11px] min-[360px]:text-xs min-[412px]:text-sm ${active ? "text-forest" : "text-muted"}`}
                 >
                   <TabIcon name={link.icon} filled={active} />
                   {link.short}

@@ -12,7 +12,12 @@ const doors = [
   {
     href: "/consultorio/pacientes",
     title: "Pacientes",
-    text: "Fichas, visitas y dientes",
+    text: "Fichas, historia clínica y odontograma",
+  },
+  {
+    href: "/consultorio/odontograma",
+    title: "Prestaciones del odontograma",
+    text: "Lo que podés marcar en cada diente",
   },
   {
     href: "/consultorio/preguntas",
@@ -20,9 +25,9 @@ const doors = [
     text: "Lo que le preguntás a cada paciente sobre su salud",
   },
   {
-    href: "/consultorio/prestaciones",
-    title: "Mis precios",
-    text: "Lo que cobrás por cada práctica",
+    href: "/consultorio/presupuesto",
+    title: "Presupuesto",
+    text: "Tu lista de precios y los presupuestos de tus pacientes",
   },
   {
     href: "/consultorio/consentimientos",

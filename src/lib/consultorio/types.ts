@@ -22,7 +22,8 @@ export const lowerTeeth = [
 
 export const allTeeth = [...upperTeeth, ...lowerTeeth];
 
-export type ConsentKind = "general" | "implante" | "cirugia" | "endodoncia";
+/** "implante" y "cirugia" ya no se ofrecen, pero quedan para leer las hojas ya firmadas. */
+export type ConsentKind = "general" | "ortopedia" | "ortodoncia" | "endodoncia" | "implante" | "cirugia";
 
 export type ConsentSource = "pantalla" | "papel";
 
@@ -41,6 +42,7 @@ export type SignedConsent = {
   textVersion?: string;
   source?: ConsentSource;
   teethSnapshot?: Partial<Record<string, ToothMark>>;
+  piezasSnapshot?: Piezas;
   fileId?: string;
   fileName?: string;
   mime?: string;
@@ -52,6 +54,34 @@ export type ChartFile = {
   fileName: string;
   mime: string;
   addedOn: string;
+};
+
+export type PrestacionCatalogo = {
+  id: string;
+  name: string;
+  short: string;
+};
+
+export type EstadoPrestacion = "pendiente" | "realizada" | "";
+
+export type PrestacionPieza = {
+  id: string;
+  prestacionId: string;
+  name: string;
+  short: string;
+  estado: EstadoPrestacion;
+  nota: string;
+  addedOn: string;
+  doneOn: string;
+};
+
+export type Piezas = Partial<Record<string, PrestacionPieza[]>>;
+
+export type PasoPlan = {
+  id: string;
+  text: string;
+  done: boolean;
+  doneOn: string;
 };
 
 export type TipoPregunta = "sino" | "texto";
@@ -90,20 +120,39 @@ export type Patient = {
   reason: string;
   startedOn: string;
   evolution: Evolution[];
-  teeth: Partial<Record<string, ToothMark>>;
+  piezas: Piezas;
+  plan: PasoPlan[];
+  presupuestos: Presupuesto[];
+  /** Formato viejo, una marca por diente. Solo se lee para convertirlo a `piezas`. */
+  teeth?: Partial<Record<string, ToothMark>>;
   consents: SignedConsent[];
   files: ChartFile[];
   updatedAt: string;
 };
 
+/** Una fila de la lista de precios de Jesica. `chapter` es el tipo. */
 export type FeeItem = {
   id: string;
-  code: string;
   chapter: string;
   name: string;
-  minimum: number | null;
   price: number | null;
-  offered?: boolean;
+};
+
+export type ItemPresupuesto = {
+  id: string;
+  tipo: string;
+  name: string;
+  cantidad: number;
+  precio: number | null;
+};
+
+export type Presupuesto = {
+  id: string;
+  titulo: string;
+  createdOn: string;
+  items: ItemPresupuesto[];
+  nota: string;
+  sentOn: string;
 };
 
 export type Store = {

@@ -158,7 +158,6 @@ export function AntecedentesMedicos({
   respuestas,
   background,
   patientId,
-  plegado = false,
   onRespuestas,
   onBackground,
 }: {
@@ -166,7 +165,6 @@ export function AntecedentesMedicos({
   respuestas: RespuestasMedicas;
   background: string;
   patientId: string;
-  plegado?: boolean;
   onRespuestas: (respuestas: RespuestasMedicas) => void;
   onBackground: (background: string) => void;
 }) {
@@ -188,8 +186,10 @@ export function AntecedentesMedicos({
     onRespuestas(next);
   }
 
-  const cuerpo = (
-    <>
+  return (
+    <div className="rounded-2xl border border-sand bg-white p-4">
+      <h3 className="font-serif text-2xl">Antecedentes médicos</h3>
+      <p className="mt-1 text-forest">{resumen}</p>
       {preguntas.length > 0 ? (
         <ul className="mt-2">
           {preguntas.map((pregunta) => (
@@ -221,31 +221,11 @@ export function AntecedentesMedicos({
         />
       </label>
       <Link
-        href={`/consultorio/preguntas?volver=${encodeURIComponent(`/consultorio/pacientes/${patientId}`)}`}
+        href={`/consultorio/preguntas?volver=${encodeURIComponent(`/consultorio/pacientes/${patientId}?tab=odontograma`)}`}
         className="mt-3 inline-flex min-h-12 items-center text-forest underline underline-offset-4 print:hidden"
       >
         Editar mis preguntas
       </Link>
-    </>
-  );
-
-  if (plegado) {
-    return (
-      <details className="rounded-2xl border border-sand bg-white print:hidden">
-        <summary className="cursor-pointer list-none px-4 py-3 marker:content-none [&::-webkit-details-marker]:hidden">
-          <span className="block font-serif text-2xl">Antecedentes médicos</span>
-          <span className="mt-1 block text-forest">{resumen}</span>
-        </summary>
-        <div className="px-4 pb-4">{cuerpo}</div>
-      </details>
-    );
-  }
-
-  return (
-    <div className="rounded-2xl border border-sand bg-white p-4">
-      <h3 className="font-serif text-2xl">Antecedentes médicos</h3>
-      <p className="mt-1 text-forest">{resumen}</p>
-      {cuerpo}
     </div>
   );
 }

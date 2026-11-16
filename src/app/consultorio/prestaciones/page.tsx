@@ -1,15 +1,6 @@
-import { PrestacionesEditor } from "@/components/consultorio/prestaciones-editor";
-import { ConsultorioShell } from "@/components/consultorio/shell";
-import { requireSession } from "@/lib/consultorio/guard";
-import { readStore } from "@/lib/consultorio/store";
+import { redirect } from "next/navigation";
 
-export default async function PrestacionesPage() {
-  await requireSession();
-  const store = await readStore();
-
-  return (
-    <ConsultorioShell current="/consultorio/prestaciones">
-      <PrestacionesEditor initial={store.fees} />
-    </ConsultorioShell>
-  );
+/** "Mis precios" ahora vive dentro de Presupuesto. */
+export default function PrestacionesPage() {
+  redirect("/consultorio/presupuesto/precios");
 }

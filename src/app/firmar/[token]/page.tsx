@@ -16,7 +16,7 @@ export default async function FirmarPage(props: PageProps<"/firmar/[token]">) {
   return (
     <div className="consultorio-ui min-h-full bg-cream px-4 py-8 text-forest">
       {view ? (
-        <FirmaPad name={view.name} teeth={view.teeth} token={token} />
+        <FirmaPad name={view.name} piezas={view.piezas} token={token} />
       ) : (
         <div className="mx-auto max-w-3xl rounded-[22px] border border-sand bg-white p-5">
           <p className="text-sm uppercase tracking-[0.18em] text-muted">Salud Dental · Mar del Plata</p>

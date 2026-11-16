@@ -17,6 +17,7 @@ export default async function ConsentimientosPage() {
         {consentSheets.map((sheet) => (
           <li key={sheet.kind} className="rounded-2xl border border-sand bg-white p-6">
             <h2 className="font-serif text-3xl">{sheet.practice}</h2>
+            {sheet.draft ? <p className="mt-2 font-semibold text-[#b3261e]">Borrador: falta el texto de Jesica.</p> : null}
             <Link
               href={`/consultorio/consentimientos/${sheet.kind}`}
               className="mt-4 inline-flex h-12 items-center justify-center rounded-full bg-forest px-5 text-lg text-cream"

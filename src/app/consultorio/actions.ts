@@ -15,14 +15,16 @@ import {
   fichasConNombre,
   removeChartFile,
   removePatientRecord,
-  saveFeeRecord,
+  saveFeeList,
+  saveCatalogoRecord,
   savePatientRecord,
   savePreguntasRecord,
   saveSignature,
   signWithConsentLink,
 } from "@/lib/consultorio/store";
-import { GENERAL_CONSENT_VERSION } from "@/lib/consultorio/consents";
-import type { ConsentKind, FeeItem, Patient, ToothMark } from "@/lib/consultorio/types";
+import { GENERAL_CONSENT_VERSION, consentSheet } from "@/lib/consultorio/consents";
+import { sanitizePiezas } from "@/lib/consultorio/odontograma";
+import type { ConsentKind, Patient } from "@/lib/consultorio/types";
 
 export async function login(_prev: { error: string } | null, formData: FormData) {
   const expected = consultorioPassword();
@@ -76,11 +78,24 @@ export async function savePreguntasMedicas(input: unknown): Promise<{ error: str
   return { ok: true };
 }
 
+export async function saveCatalogoOdontograma(input: unknown): Promise<{ error: string } | { ok: true }> {
+  await requireSession();
+  try {
+    await saveCatalogoRecord(input);
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "No se pudo guardar." };
+  }
+  return { ok: true };
+}
+
 export async function guardarFirma(formData: FormData): Promise<{ error: string } | { patient: Patient }> {
   await requireSession();
   const patientId = String(formData.get("patientId") ?? "");
   const kind = String(formData.get("kind") ?? "") as ConsentKind;
   const scan = formData.get("scan");
+  if (kind !== "general" && !consentSheet(kind)) {
+    return { error: "Esa hoja ya no se usa." };
+  }
   if (!(scan instanceof File) || scan.size === 0) {
     return { error: "No llegó la foto." };
   }
@@ -132,19 +147,18 @@ export async function firmarEnPantalla(formData: FormData): Promise<{ error: str
   }
   if (!aclaracion) return { error: "Falta la aclaración." };
   if (!(scan instanceof File) || scan.size === 0) return { error: "Falta la firma." };
-  let teeth: Partial<Record<string, ToothMark>> = {};
+  let piezas: unknown = {};
   try {
-    const parsed = JSON.parse(String(formData.get("teeth") ?? "{}"));
-    if (parsed && typeof parsed === "object") teeth = parsed;
+    piezas = JSON.parse(String(formData.get("piezas") ?? "{}"));
   } catch {
-    teeth = {};
+    piezas = {};
   }
   try {
     const patient = await saveSignature(patientId, kind, scan, {
       source: "pantalla",
       aclaracion,
       textVersion,
-      teethSnapshot: teeth,
+      piezasSnapshot: sanitizePiezas(piezas),
     });
     return { patient };
   } catch (error) {
@@ -183,12 +197,12 @@ export async function deletePatient(id: string) {
   redirect("/consultorio/pacientes");
 }
 
-export async function saveOneFee(input: unknown): Promise<{ error: string } | { fee: FeeItem }> {
+export async function savePrecios(input: unknown): Promise<{ error: string } | { ok: true }> {
   await requireSession();
   try {
-    const fee = await saveFeeRecord(input);
-    return { fee };
+    await saveFeeList(input);
   } catch (error) {
-    return { error: error instanceof Error ? error.message : "No se pudo guardar el precio." };
+    return { error: error instanceof Error ? error.message : "No se pudo guardar la lista de precios." };
   }
+  return { ok: true };
 }

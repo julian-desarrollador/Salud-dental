@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { firmarConEnlace } from "@/app/consultorio/actions";
 import { generalConsent } from "@/lib/consultorio/consents";
-import { toothMarks, type ToothMark } from "@/lib/consultorio/types";
+import { OdontogramaPiezasLectura } from "@/components/consultorio/odontograma-lectura";
+import { toothMarks, type Piezas, type ToothMark } from "@/lib/consultorio/types";
 
 const quadrants = [
   { title: "Arriba, derecha", teeth: ["18", "17", "16", "15", "14", "13", "12", "11"] },
@@ -42,11 +43,11 @@ export function OdontogramaLectura({ teeth }: { teeth: Partial<Record<string, To
 
 export function FirmaPad({
   name,
-  teeth,
+  piezas,
   token,
 }: {
   name: string;
-  teeth: Partial<Record<string, ToothMark>>;
+  piezas: Piezas;
   token: string;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -167,7 +168,7 @@ export function FirmaPad({
         </div>
         <h3 className="mt-8 font-serif text-2xl">Odontograma</h3>
         <div className="mt-3">
-          <OdontogramaLectura teeth={teeth} />
+          <OdontogramaPiezasLectura piezas={piezas} />
         </div>
         <label className="mt-8 block" htmlFor="aclaracion">
           Aclaración

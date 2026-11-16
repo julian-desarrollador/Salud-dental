@@ -7,39 +7,40 @@ import { AntecedentesMedicos } from "@/components/consultorio/antecedentes-medic
 import { CalendarioCampo } from "@/components/consultorio/calendario-campo";
 import { Confirmacion } from "@/components/consultorio/confirmacion";
 import { OdontogramaLectura } from "@/components/consultorio/firma-pad";
-import { consentSheets, generalConsent } from "@/lib/consultorio/consents";
-import { aWhatsapp, telefonoValido } from "@/lib/consultorio/agenda-horario";
+import { OdontogramaEditor } from "@/components/consultorio/odontograma-editor";
+import { OdontogramaPiezasLectura } from "@/components/consultorio/odontograma-lectura";
+import { PlanTratamiento } from "@/components/consultorio/plan-tratamiento";
+import { PresupuestosPaciente } from "@/components/consultorio/presupuestos-paciente";
+import { consentSheets, generalConsent, practiceOf, retiredConsentSheets } from "@/lib/consultorio/consents";
+import { abrirWhatsapp, enlaceWhatsapp } from "@/lib/consultorio/whatsapp";
 import { edadEn, edadEscrita, fechaDeInicio, fechaEnPalabras, todayInArgentina } from "@/lib/consultorio/fecha";
-import { allTeeth, toothMarks, type ChartFile, type Patient, type PreguntaMedica, type ToothMark } from "@/lib/consultorio/types";
+import { piezasDe } from "@/lib/consultorio/odontograma";
+import { presupuestoNuevo } from "@/lib/consultorio/presupuesto";
+import type { ChartFile, FeeItem, Patient, PreguntaMedica, PrestacionCatalogo } from "@/lib/consultorio/types";
 
 const tabs = [
   { id: "datos", label: "Datos" },
-  { id: "visitas", label: "Visitas" },
-  { id: "dientes", label: "Dientes" },
-  { id: "archivos", label: "Archivos" },
-  { id: "firmas", label: "Firmas" },
+  { id: "odontograma", label: "Odontograma" },
+  { id: "historia", label: "Historia clínica" },
+  { id: "estudios", label: "Estudios" },
+  { id: "firmas", label: "Consentimientos informados" },
+  { id: "presupuestos", label: "Presupuestos" },
 ] as const;
 
 type Tab = (typeof tabs)[number]["id"];
 
+function esTab(value: unknown): value is Tab {
+  return tabs.some((item) => item.id === value);
+}
+
 const accion =
   "inline-flex h-10 cursor-pointer items-center justify-center rounded-full border border-forest bg-white px-4 text-base text-forest";
 
-const quadrants = [
-  { title: "Arriba, derecha del paciente", teeth: ["18", "17", "16", "15", "14", "13", "12", "11"] },
-  { title: "Arriba, izquierda del paciente", teeth: ["21", "22", "23", "24", "25", "26", "27", "28"] },
-  { title: "Abajo, derecha del paciente", teeth: ["48", "47", "46", "45", "44", "43", "42", "41"] },
-  { title: "Abajo, izquierda del paciente", teeth: ["31", "32", "33", "34", "35", "36", "37", "38"] },
-];
-
-const markById = Object.fromEntries(toothMarks.map((mark) => [mark.id, mark])) as Record<
-  ToothMark,
-  (typeof toothMarks)[number]
->;
-
 function ready(patient: Patient): Patient {
+  const resto = { ...patient };
+  delete resto.teeth;
   return {
-    ...patient,
+    ...resto,
     document: patient.document ?? "",
     birthDate: patient.birthDate ?? "",
     age: patient.age ?? "",
@@ -52,7 +53,9 @@ function ready(patient: Patient): Patient {
     reason: patient.reason ?? "",
     startedOn: fechaDeInicio(patient),
     evolution: patient.evolution ?? [],
-    teeth: patient.teeth ?? {},
+    piezas: piezasDe(patient),
+    plan: patient.plan ?? [],
+    presupuestos: patient.presupuestos ?? [],
     consents: patient.consents ?? [],
     files: patient.files ?? [],
   };
@@ -73,24 +76,41 @@ function draftOf(patient: Patient) {
     reason: patient.reason,
     startedOn: fechaDeInicio(patient),
     evolution: patient.evolution,
-    teeth: patient.teeth,
+    piezas: piezasDe(patient),
+    plan: patient.plan ?? [],
+    presupuestos: patient.presupuestos ?? [],
   });
 }
 
 export function FichaEditor({
   initial,
   preguntas,
+  catalogo,
+  precios,
   volver,
   enlaceInicial,
+  tabInicial,
+  nuevoPresupuesto = false,
 }: {
   initial: Patient;
   preguntas: PreguntaMedica[];
+  catalogo: PrestacionCatalogo[];
+  precios: FeeItem[];
   volver: string;
   enlaceInicial: string;
+  tabInicial?: string;
+  /** Se llegó desde "Nuevo presupuesto": la ficha abre con uno ya creado. */
+  nuevoPresupuesto?: boolean;
 }) {
-  const [patient, setPatient] = useState(() => ready(initial));
-  const [tab, setTab] = useState<Tab>("visitas");
-  const [selected, setSelected] = useState<string | null>(null);
+  // El presupuesto nuevo no está en "saved", así que el autoguardado lo guarda solo.
+  const [inicio] = useState(() => {
+    const base = ready(initial);
+    if (!nuevoPresupuesto || base.presupuestos.length >= 50) return { patient: base, nuevoId: "" };
+    const presupuesto = presupuestoNuevo();
+    return { patient: { ...base, presupuestos: [presupuesto, ...base.presupuestos] }, nuevoId: presupuesto.id };
+  });
+  const [patient, setPatient] = useState(inicio.patient);
+  const [tab, setTab] = useState<Tab>(esTab(tabInicial) ? tabInicial : "historia");
   const [notice, setNotice] = useState("");
   const [confirmName, setConfirmName] = useState("");
   const [askDelete, setAskDelete] = useState(false);
@@ -136,6 +156,18 @@ export function FichaEditor({
     };
   }, [foto]);
 
+  // Lleva la pantalla al presupuesto nuevo o al pedido en la dirección (#presupuesto-…).
+  // Se quita "nuevo" de la dirección para que recargar no cree otro.
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (url.searchParams.has("nuevo")) {
+      url.searchParams.delete("nuevo");
+      window.history.replaceState(window.history.state, "", url);
+    }
+    const destino = inicio.nuevoId ? `presupuesto-${inicio.nuevoId}` : decodeURIComponent(url.hash.slice(1));
+    if (destino.startsWith("presupuesto-")) document.getElementById(destino)?.scrollIntoView({ block: "start" });
+  }, [inicio.nuevoId]);
+
   useEffect(() => {
     if (draft === saved.current) {
       setNotice((current) => (current === "Guardando…" ? "" : current));
@@ -159,16 +191,6 @@ export function FichaEditor({
     }, 700);
     return () => clearTimeout(timer);
   }, [draft, patient]);
-
-  function setMark(mark: ToothMark) {
-    if (!selected) return;
-    setPatient((current) => {
-      const teeth = { ...current.teeth };
-      if (mark === "sana") delete teeth[selected];
-      else teeth[selected] = mark;
-      return { ...current, teeth };
-    });
-  }
 
   async function onPhoto(kind: Patient["consents"][number]["kind"], file: File) {
     if (file.size > 4 * 1024 * 1024) {
@@ -230,7 +252,9 @@ export function FichaEditor({
     setNotice("Guardado");
   }
 
-  const selectedMark = selected ? (patient.teeth[selected] ?? "sana") : null;
+  const firmadasRetiradas = patient.consents.filter((item) =>
+    retiredConsentSheets.some((sheet) => sheet.kind === item.kind),
+  );
   const edadCalculada = edadEn(patient.birthDate);
   const edadVisible = patient.age || (edadCalculada === null ? "" : String(edadCalculada));
 
@@ -252,20 +276,6 @@ export function FichaEditor({
     setPatient((current) => ({ ...current, age, ageSetOn: todayInArgentina() }));
   }
 
-  function antecedentes(plegado: boolean) {
-    return (
-      <AntecedentesMedicos
-        preguntas={preguntas}
-        respuestas={patient.medicalAnswers}
-        background={patient.background}
-        patientId={patient.id}
-        plegado={plegado}
-        onRespuestas={(medicalAnswers) => setPatient((current) => ({ ...current, medicalAnswers }))}
-        onBackground={(background) => setPatient((current) => ({ ...current, background }))}
-      />
-    );
-  }
-
   return (
     <div>
       <Link href={volver} scroll={false} aria-label="Atrás" className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-sand bg-white text-forest print:hidden">
@@ -273,7 +283,7 @@ export function FichaEditor({
       </Link>
       <h1 className="mt-3 font-serif text-4xl text-forest md:text-5xl">{patient.name || "Sin nombre"}</h1>
       <p className="mt-2 hidden text-muted print:block">Od. Jesica Brenda Goroso · Odontología</p>
-      <div className="mt-6 grid grid-cols-3 gap-2 print:hidden sm:grid-cols-5" role="tablist">
+      <div className="mt-6 grid grid-cols-2 gap-2 print:hidden sm:grid-cols-3 lg:grid-cols-6" role="tablist">
         {tabs.map((item) => (
           <button
             key={item.id}
@@ -281,7 +291,7 @@ export function FichaEditor({
             role="tab"
             aria-selected={tab === item.id}
             onClick={() => setTab(item.id)}
-            className={`min-h-12 rounded-xl px-1 text-forest ${tab === item.id ? "bg-sand" : "bg-white"}`}
+            className={`min-h-12 rounded-xl px-1 text-sm leading-tight text-forest lg:text-lg ${tab === item.id ? "bg-sand" : "bg-white"}`}
           >
             {item.label}
           </button>
@@ -385,7 +395,6 @@ export function FichaEditor({
             />
           </label>
           <p className="text-forest">Ficha empezada el {fechaEnPalabras(fechaDeInicio(patient))}</p>
-          {antecedentes(false)}
           <label className="block">
             Motivo de consulta
             <textarea
@@ -398,8 +407,33 @@ export function FichaEditor({
         </div>
       </section>
 
-      <section className={tab === "visitas" ? "mt-8" : "mt-8 hidden print:block"}>
-        <h2 className="font-serif text-3xl">Visitas</h2>
+      <section className={tab === "odontograma" ? "mt-8" : "mt-8 hidden print:block"}>
+        <h2 className="font-serif text-3xl">Odontograma</h2>
+        <div className="mt-6">
+          <AntecedentesMedicos
+            preguntas={preguntas}
+            respuestas={patient.medicalAnswers}
+            background={patient.background}
+            patientId={patient.id}
+            onRespuestas={(medicalAnswers) => setPatient((current) => ({ ...current, medicalAnswers }))}
+            onBackground={(background) => setPatient((current) => ({ ...current, background }))}
+          />
+        </div>
+        <div className="mt-6">
+          <OdontogramaEditor
+            piezas={patient.piezas}
+            catalogo={catalogo}
+            patientId={patient.id}
+            onChange={(piezas) => setPatient((current) => ({ ...current, piezas }))}
+          />
+        </div>
+        <div className="mt-8">
+          <PlanTratamiento plan={patient.plan} onChange={(plan) => setPatient((current) => ({ ...current, plan }))} />
+        </div>
+      </section>
+
+      <section className={tab === "historia" ? "mt-8" : "mt-8 hidden print:block"}>
+        <h2 className="font-serif text-3xl">Historia clínica</h2>
         <button
           type="button"
           className="mt-6 inline-flex h-12 items-center rounded-full bg-forest px-5 text-lg text-cream print:hidden"
@@ -457,69 +491,8 @@ export function FichaEditor({
         </div>
       </section>
 
-      <section className={tab === "dientes" ? "mt-8" : "mt-8 hidden print:block"}>
-        <h2 className="font-serif text-3xl">Dientes</h2>
-        <div className="mt-6">{antecedentes(true)}</div>
-        <div className="mt-6 grid gap-6 md:grid-cols-2">
-          {quadrants.map((quadrant) => (
-            <div key={quadrant.title}>
-              <h3 className="font-serif text-2xl">{quadrant.title}</h3>
-              <div className="mt-3 grid grid-cols-4 gap-2">
-                {quadrant.teeth.map((tooth) => {
-                  const mark = patient.teeth[tooth] ?? "sana";
-                  return (
-                    <button
-                      key={tooth}
-                      type="button"
-                      onClick={() => {
-                        setSelected(tooth);
-                        document.getElementById("marcas-pieza")?.scrollIntoView({ behavior: "smooth", block: "start" });
-                      }}
-                      aria-pressed={selected === tooth}
-                      aria-label={`Pieza ${tooth}, ${markById[mark].label}`}
-                      className={`flex min-h-12 flex-col overflow-hidden rounded-lg border bg-cream text-lg text-forest ${selected === tooth ? "border-forest ring-2 ring-forest" : "border-sand"}`}
-                    >
-                      <span className="h-3 w-full" style={{ background: markById[mark].color }} />
-                      <span className={`pt-2 ${mark === "ausente" ? "line-through" : ""}`}>{tooth}</span>
-                      <span className="min-h-6 break-words px-1 pb-2 text-base leading-tight">{markById[mark].short}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
-        </div>
-        <div id="marcas-pieza" className="mt-6 scroll-mt-4 print:hidden">
-          <p className="text-forest">{selected ? `Pieza ${selected}` : "Tocá una pieza."}</p>
-          <div className="mt-3 grid gap-2 sm:grid-cols-2">
-            {toothMarks.map((mark) => (
-              <button
-                key={mark.id}
-                type="button"
-                disabled={!selected}
-                onClick={() => setMark(mark.id)}
-                className={`flex min-h-12 items-center gap-3 rounded-xl border bg-white px-4 text-left text-lg text-forest disabled:opacity-50 ${selectedMark === mark.id ? "border-forest" : "border-sand"}`}
-              >
-                <span className="h-6 w-6 shrink-0 rounded-full border border-sand" style={{ background: mark.color }} />
-                {mark.label}
-              </button>
-            ))}
-          </div>
-        </div>
-        <ul className="mt-4 hidden gap-2 print:grid">
-          {allTeeth.map((tooth) => {
-            const mark = patient.teeth[tooth];
-            return mark ? (
-              <li key={tooth}>
-                Pieza {tooth}: {markById[mark].label}
-              </li>
-            ) : null;
-          })}
-        </ul>
-      </section>
-
-      <section className={tab === "archivos" ? "mt-8 print:hidden" : "hidden"}>
-        <h2 className="font-serif text-3xl">Archivos</h2>
+      <section className={tab === "estudios" ? "mt-8 print:hidden" : "hidden"}>
+        <h2 className="font-serif text-3xl">Estudios</h2>
         <p className="mt-3 text-forest">Una imagen, un PDF o un Word. Hasta 4 MB.</p>
         <label className="mt-6 inline-flex h-12 cursor-pointer items-center justify-center rounded-full bg-forest px-5 text-lg text-cream">
           Subir archivo
@@ -535,7 +508,7 @@ export function FichaEditor({
           />
         </label>
         {patient.files.length === 0 ? (
-          <p className="mt-6 text-muted">Todavía no hay archivos.</p>
+          <p className="mt-6 text-muted">Todavía no hay estudios.</p>
         ) : (
           <ul className="mt-6 space-y-4">
             {patient.files.map((file) => (
@@ -567,7 +540,7 @@ export function FichaEditor({
       </section>
 
       <section className={tab === "firmas" ? "mt-8" : "mt-8 hidden print:block"}>
-        <h2 className="font-serif text-3xl">Firmas</h2>
+        <h2 className="font-serif text-3xl">Consentimientos informados</h2>
         <p className="mt-3 text-forest print:hidden">
           El consentimiento general lo firma el paciente con un enlace. Las otras hojas se pueden imprimir y subir en foto.
         </p>
@@ -587,6 +560,7 @@ export function FichaEditor({
                   {signed?.fileId ? (
                     <span className="text-muted"> · {signed.signedOn.split("-").reverse().join("/")}</span>
                   ) : null}
+                  {sheet.draft ? <span className="block text-sm font-semibold text-[#b3261e]">Borrador: falta el texto de Jesica</span> : null}
                 </p>
                 <p className="flex flex-wrap gap-2">
                   {signed?.fileId ? (
@@ -596,7 +570,12 @@ export function FichaEditor({
                   ) : null}
                   <a
                     className={accion}
-                    href={`/consultorio/consentimientos/${sheet.kind}?nombre=${encodeURIComponent(patient.name)}`}
+                    href={`/consultorio/consentimientos/${sheet.kind}?${new URLSearchParams({
+                      nombre: patient.name,
+                      dni: patient.document,
+                      nacimiento: patient.birthDate.split("-").reverse().join("/"),
+                      volver: `/consultorio/pacientes/${patient.id}?${new URLSearchParams({ tab: "firmas", volver })}`,
+                    })}`}
                   >
                     Imprimir
                   </a>
@@ -618,6 +597,38 @@ export function FichaEditor({
             );
           })}
         </ul>
+        {firmadasRetiradas.length > 0 ? (
+          <>
+            <h3 className="mt-10 font-serif text-2xl print:hidden">Hojas que ya no se usan</h3>
+            <p className="mt-1 text-muted print:hidden">Ya estaban firmadas en esta ficha. Se conservan para consulta.</p>
+            <ul className="mt-2 print:hidden">
+              {firmadasRetiradas.map((item) => (
+                <li key={item.id} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-sand py-3">
+                  <p>
+                    {practiceOf(item.kind)}
+                    <span className="text-muted"> · {item.signedOn.split("-").reverse().join("/")}</span>
+                  </p>
+                  {item.fileId ? (
+                    <a className={accion} href={`/consultorio/archivo/${item.fileId}`}>
+                      Ver
+                    </a>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          </>
+        ) : null}
+      </section>
+
+      <section className={tab === "presupuestos" ? "mt-8 print:hidden" : "hidden"}>
+        <h2 className="font-serif text-3xl">Presupuestos</h2>
+        <PresupuestosPaciente
+          patientId={patient.id}
+          presupuestos={patient.presupuestos}
+          precios={precios}
+          paciente={{ name: patient.name, contact: patient.contact }}
+          onChange={(presupuestos) => setPatient((current) => ({ ...current, presupuestos }))}
+        />
       </section>
 
       <div className="mt-12 print:hidden">
@@ -699,16 +710,7 @@ function horaFirmada(iso: string | undefined) {
 
 function whatsappDeLaFirma(path: string, contacto: string) {
   const absoluta = new URL(path, window.location.origin).href;
-  const texto = `Hola, te dejo el consentimiento informado para firmar:\n${absoluta}`;
-  const mensaje = encodeURIComponent(texto);
-  if (!telefonoValido(contacto)) return `https://wa.me/?text=${mensaje}`;
-  const destino = aWhatsapp(contacto).replace(/^whatsapp:\+/, "");
-  return `https://wa.me/${destino}?text=${mensaje}`;
-}
-
-function abrirWhatsapp(url: string) {
-  const ventana = window.open(url, "_blank");
-  if (!ventana) window.location.href = url;
+  return enlaceWhatsapp(contacto, `Hola, te dejo el consentimiento informado para firmar:\n${absoluta}`);
 }
 
 function GeneralFirmado({
@@ -752,7 +754,14 @@ function GeneralFirmado({
           ) : signed.textVersion ? (
             <p className="mt-3 text-muted">Firmado con una versión anterior del texto ({signed.textVersion}).</p>
           ) : null}
-          {signed.teethSnapshot ? (
+          {signed.piezasSnapshot ? (
+            <div className="mt-4">
+              <p className="text-muted">Odontograma al firmar</p>
+              <div className="mt-2">
+                <OdontogramaPiezasLectura piezas={signed.piezasSnapshot} />
+              </div>
+            </div>
+          ) : signed.teethSnapshot ? (
             <div className="mt-4">
               <p className="text-muted">Odontograma al firmar</p>
               <div className="mt-2">

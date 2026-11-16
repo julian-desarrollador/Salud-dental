@@ -44,6 +44,12 @@ body {
   outline-offset: 3px;
 }
 
+/* Campos con sugerencias (Categoría): se escriben libremente, así que sin la flecha
+   de menú que agrega Chrome; las sugerencias aparecen igual al escribir. */
+input[list]::-webkit-calendar-picker-indicator {
+  display: none !important;
+}
+
 .consultorio-ui {
   min-height: 100vh;
   background: var(--cream);
