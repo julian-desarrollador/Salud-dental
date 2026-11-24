@@ -23,12 +23,32 @@ const idsReservados = new Set(["__proto__", "constructor", "prototype"]);
 const piezasValidas = new Set<string>(allTeeth);
 const estados = new Set<EstadoPrestacion>(["pendiente", "realizada", ""]);
 
-export const cuadrantes = [
-  { title: "Arriba, derecha del paciente", teeth: ["18", "17", "16", "15", "14", "13", "12", "11"] },
-  { title: "Arriba, izquierda del paciente", teeth: ["21", "22", "23", "24", "25", "26", "27", "28"] },
-  { title: "Abajo, derecha del paciente", teeth: ["48", "47", "46", "45", "44", "43", "42", "41"] },
-  { title: "Abajo, izquierda del paciente", teeth: ["31", "32", "33", "34", "35", "36", "37", "38"] },
+/**
+ * Los cuatro cuadrantes, con las piezas desde el medio hacia afuera (como las numera Jesica).
+ * Los del lado derecho del paciente se dibujan de derecha a izquierda, así el 11 y el 41
+ * quedan pegados al medio: 18…11 | 21…28.
+ */
+export const cuadrantes: { title: string; lado: "derecha" | "izquierda"; arriba: boolean; teeth: string[] }[] = [
+  { title: "Arriba, derecha del paciente", lado: "derecha", arriba: true, teeth: ["11", "12", "13", "14", "15", "16", "17", "18"] },
+  { title: "Arriba, izquierda del paciente", lado: "izquierda", arriba: true, teeth: ["21", "22", "23", "24", "25", "26", "27", "28"] },
+  { title: "Abajo, derecha del paciente", lado: "derecha", arriba: false, teeth: ["41", "42", "43", "44", "45", "46", "47", "48"] },
+  { title: "Abajo, izquierda del paciente", lado: "izquierda", arriba: false, teeth: ["31", "32", "33", "34", "35", "36", "37", "38"] },
 ];
+
+/** Bordes de la cruz del medio (derecha | izquierda, arriba / abajo) cuando los cuadrantes van de a dos. */
+export function bordesDelMedio(cuadrante: { lado: "derecha" | "izquierda"; arriba: boolean }, ancho: "md" | "sm") {
+  const derecha = cuadrante.lado === "derecha";
+  if (ancho === "md") {
+    return [
+      derecha ? "md:border-r md:pr-5" : "md:pl-5",
+      cuadrante.arriba ? "md:border-b md:pb-5" : "md:pt-5",
+    ].join(" ");
+  }
+  return [
+    derecha ? "sm:border-r sm:pr-3" : "sm:pl-3",
+    cuadrante.arriba ? "sm:border-b sm:pb-3" : "sm:pt-3",
+  ].join(" ");
+}
 
 export const catalogoInicial: PrestacionCatalogo[] = [
   { id: "caries", name: "Caries", short: "Caries" },

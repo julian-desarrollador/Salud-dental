@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ConsultorioShell } from "@/components/consultorio/shell";
-import { consentSheets } from "@/lib/consultorio/consents";
+import { HOJAS_EDITABLES, NOMBRE_HOJA } from "@/lib/consultorio/consents";
 import { requireSession } from "@/lib/consultorio/guard";
 
 export default async function ConsentimientosPage() {
@@ -8,21 +8,20 @@ export default async function ConsentimientosPage() {
 
   return (
     <ConsultorioShell current="/consultorio/consentimientos">
-      <h1 className="font-serif text-4xl text-forest md:text-5xl">Hojas para firmar</h1>
+      <h1 className="font-serif text-4xl text-forest md:text-5xl">Consentimientos</h1>
       <span className="mt-4 block h-0.5 w-16 bg-gold" />
-      <p className="mt-6 text-forest">
-        Imprimir es más cómodo desde la computadora del consultorio. En el celular, subí la foto de la hoja firmada desde la ficha del paciente.
-      </p>
-      <ul className="mt-8 space-y-4">
-        {consentSheets.map((sheet) => (
-          <li key={sheet.kind} className="rounded-2xl border border-sand bg-white p-6">
-            <h2 className="font-serif text-3xl">{sheet.practice}</h2>
-            {sheet.draft ? <p className="mt-2 font-semibold text-[#b3261e]">Borrador: falta el texto de Jesica.</p> : null}
+      <p className="mt-6 text-forest">Los textos que leen y firman tus pacientes.</p>
+      <ul className="mt-8 max-w-2xl divide-y divide-sand rounded-2xl border border-sand bg-white">
+        {HOJAS_EDITABLES.map((kind) => (
+          <li key={kind}>
             <Link
-              href={`/consultorio/consentimientos/${sheet.kind}`}
-              className="mt-4 inline-flex h-12 items-center justify-center rounded-full bg-forest px-5 text-lg text-cream"
+              href={`/consultorio/consentimientos/${kind}`}
+              className="flex min-h-16 items-center justify-between gap-4 px-5 font-serif text-2xl text-forest"
             >
-              Imprimir
+              {NOMBRE_HOJA[kind]}
+              <span aria-hidden="true" className="font-sans text-2xl text-muted">
+                ›
+              </span>
             </Link>
           </li>
         ))}

@@ -1,12 +1,23 @@
 import { Binary, type Collection } from "mongodb";
 import { consultorioDb } from "./db";
-import { GENERAL_CONSENT_VERSION } from "./consents";
+import {
+  HOJAS_EDITABLES,
+  numeroDeVersion,
+  sanitizeNotas,
+  sanitizeTexto,
+  sePuedeEnviar,
+  textoDeFabrica,
+  type HojaEditable,
+  type TextoConsentimiento,
+  type TextoVigente,
+} from "./consents";
 import { edadEscrita, fechaDeInicio, isIsoDate, todayInArgentina } from "./fecha";
 import { claveNombre } from "./nombre";
 import { seedFees } from "./fees";
 import { preguntasIniciales, sanitizePreguntas, sanitizeRespuestas } from "./preguntas";
 import { catalogoInicial, piezasDe, piezasDesdeLegado, sanitizeCatalogo, sanitizePiezas, sanitizePlan } from "./odontograma";
 import { sanitizePrecios, sanitizePresupuestos } from "./presupuesto";
+import { PLANTILLAS_INICIALES, sanitizeMensajes, type MensajesTurno } from "./avisos-turno";
 import {
   allTeeth,
   toothMarks,
@@ -19,6 +30,7 @@ import {
   type PreguntaMedica,
   type PrestacionCatalogo,
   type ConsentSource,
+  type Firmante,
   type SignedConsent,
   type Store,
   type ToothMark,
@@ -30,10 +42,13 @@ const MIGRACION_PRECIOS = "precios-sin-colegio";
 type Adjunto = { id: string; mime: string; data: Binary };
 type PreguntasDoc = { id: string; questions: PreguntaMedica[]; updatedAt: string };
 type CatalogoDoc = { id: string; items: PrestacionCatalogo[]; updatedAt: string };
+type MensajesDoc = MensajesTurno & { id: string; updatedAt: string };
+type TextoDoc = TextoVigente & { kind: HojaEditable; updatedAt: string };
 type ToothMap = NonNullable<Patient["teeth"]>;
 
 const LISTA_PREGUNTAS = "principal";
 const LISTA_PRESTACIONES = "principal";
+const MENSAJES_TURNO = "avisos-turno";
 
 let writeChain: Promise<unknown> = Promise.resolve();
 let prepared: Promise<void> | undefined;
@@ -207,12 +222,22 @@ async function catalogos(): Promise<Collection<CatalogoDoc>> {
   return (await consultorioDb()).collection<CatalogoDoc>("prestaciones_odontograma");
 }
 
+async function mensajesWhatsapp(): Promise<Collection<MensajesDoc>> {
+  return (await consultorioDb()).collection<MensajesDoc>("mensajes_whatsapp");
+}
+
 type ConsentLinkDoc = {
   token: string;
   patientId: string;
+  /** Hoja del enlace. Los enlaces viejos no lo tienen: son del consentimiento general. */
+  kind?: ConsentKind;
+  /** Lo que Jesica escribió en los espacios de la hoja antes de mandarla. */
+  notas?: { label: string; texto: string }[];
   expiresAt: string;
   usedAt: string | null;
 };
+
+type HojaDeEnlace = "general" | "ortodoncia" | "ortopedia";
 
 async function consentLinks(): Promise<Collection<ConsentLinkDoc>> {
   return (await consultorioDb()).collection<ConsentLinkDoc>("consent_links");
@@ -240,6 +265,8 @@ async function prepare() {
         database.collection("consent_links").createIndex({ patientId: 1 }),
         database.collection("preguntas_medicas").createIndex({ id: 1 }, { unique: true }),
         database.collection("prestaciones_odontograma").createIndex({ id: 1 }, { unique: true }),
+        database.collection("mensajes_whatsapp").createIndex({ id: 1 }, { unique: true }),
+        database.collection("textos_consentimiento").createIndex({ kind: 1 }, { unique: true }),
       ]);
       await Promise.all([
         database.collection<PreguntasDoc>("preguntas_medicas").updateOne(
@@ -250,6 +277,11 @@ async function prepare() {
         database.collection<CatalogoDoc>("prestaciones_odontograma").updateOne(
           { id: LISTA_PRESTACIONES },
           { $setOnInsert: { items: catalogoInicial, updatedAt: new Date().toISOString() } },
+          { upsert: true },
+        ),
+        database.collection<MensajesDoc>("mensajes_whatsapp").updateOne(
+          { id: MENSAJES_TURNO },
+          { $setOnInsert: { ...PLANTILLAS_INICIALES, updatedAt: new Date().toISOString() } },
           { upsert: true },
         ),
       ]);
@@ -500,6 +532,10 @@ async function writeSignature(
     aclaracion?: string;
     textVersion?: string;
     piezasSnapshot?: Piezas;
+    firmante?: Firmante;
+    dniFirmante?: string;
+    notas?: { label: string; texto: string }[];
+    texto?: TextoConsentimiento;
   },
 ) {
   const uploaded = await saveUpload(file);
@@ -521,9 +557,16 @@ async function writeSignature(
   if (aclaracion) consent.aclaracion = aclaracion;
   const textVersion = clip(extra.textVersion, 40);
   if (textVersion) consent.textVersion = textVersion;
-  if (extra.source === "pantalla") {
-    consent.piezasSnapshot = sanitizePiezas(extra.piezasSnapshot ?? {});
+  if (extra.source === "pantalla" && extra.piezasSnapshot) {
+    consent.piezasSnapshot = sanitizePiezas(extra.piezasSnapshot);
   }
+  if (extra.firmante === "paciente" || extra.firmante === "representante") consent.firmante = extra.firmante;
+  const dniFirmante = clip(extra.dniFirmante, 30);
+  if (dniFirmante) consent.dniFirmante = dniFirmante;
+  const notas = sanitizeNotas(kind, extra.notas);
+  if (notas.length > 0) consent.notas = notas;
+  const texto = extra.texto ? sanitizeTexto(extra.texto) : null;
+  if (texto) consent.texto = texto;
   const next: Patient = {
     ...patient,
     consents: [...patient.consents.filter((item) => item.kind !== kind), consent],
@@ -550,27 +593,46 @@ export function saveSignature(
   });
 }
 
-export function createConsentLink(patientId: string) {
+function hojaDelEnlace(link: ConsentLinkDoc): HojaDeEnlace {
+  return link.kind === "ortodoncia" || link.kind === "ortopedia" ? link.kind : "general";
+}
+
+/** Filtro de los enlaces de una hoja; los viejos sin hoja cuentan como del general. */
+function enlacesDeLaHoja(patientId: string, kind: HojaDeEnlace) {
+  return kind === "general"
+    ? { patientId, $or: [{ kind: "general" as const }, { kind: { $exists: false } }] }
+    : { patientId, kind };
+}
+
+export function createConsentLink(patientId: string, kind: string = "general", notasInput: unknown = []) {
   return turn(async () => {
     await prepare();
+    if (!sePuedeEnviar(kind)) throw new Error("Esa hoja no se puede mandar por WhatsApp.");
+    const hoja = kind as HojaDeEnlace;
     const patient = await findPatient(patientId);
     if (!patient) throw new Error("No encontré esta ficha.");
     const links = await consentLinks();
-    await links.deleteMany({ patientId });
+    await links.deleteMany(enlacesDeLaHoja(patientId, hoja));
     const bytes = new Uint8Array(24);
     crypto.getRandomValues(bytes);
     const token = Buffer.from(bytes).toString("base64url");
     const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
-    await links.insertOne({ token, patientId, expiresAt, usedAt: null });
+    const notas = sanitizeNotas(hoja, notasInput);
+    await links.insertOne({ token, patientId, kind: hoja, notas, expiresAt, usedAt: null });
     return { token, expiresAt };
   });
 }
 
-export async function activeConsentLink(patientId: string) {
+/** Enlaces vigentes de la ficha, por hoja, con lo que Jesica escribió al mandarlos. */
+export async function activeConsentLinks(patientId: string) {
   await prepare();
-  const link = await (await consentLinks()).findOne({ patientId, usedAt: null }, { projection: { _id: 0 } });
-  if (!enlaceVigente(link)) return null;
-  return link.token;
+  const docs = await (await consentLinks()).find({ patientId, usedAt: null }, { projection: { _id: 0 } }).toArray();
+  const vigentes: Partial<Record<HojaDeEnlace, { url: string; notas: { label: string; texto: string }[] }>> = {};
+  for (const link of docs) {
+    if (!enlaceVigente(link)) continue;
+    vigentes[hojaDelEnlace(link)] = { url: `/firmar/${link.token}`, notas: link.notas ?? [] };
+  }
+  return vigentes;
 }
 
 export async function consentLinkView(token: string) {
@@ -580,23 +642,79 @@ export async function consentLinkView(token: string) {
   if (!enlaceVigente(link)) return null;
   const patient = await findPatient(link.patientId);
   if (!patient) return null;
-  return { name: patient.name, piezas: piezasDe(patient) };
+  const kind = hojaDelEnlace(link);
+  return {
+    kind,
+    name: patient.name,
+    dni: patient.document ?? "",
+    nacimiento: isIsoDate(patient.birthDate) ? patient.birthDate.split("-").reverse().join("/") : "",
+    notas: link.notas ?? [],
+    piezas: kind === "general" ? piezasDe(patient) : {},
+    texto: await readTexto(kind),
+  };
 }
 
-export function signWithConsentLink(token: string, aclaracion: string, file: File) {
+async function textosConsentimiento(): Promise<Collection<TextoDoc>> {
+  return (await consultorioDb()).collection<TextoDoc>("textos_consentimiento");
+}
+
+/** El texto vigente de una hoja: el que editó Jesica o, si nunca lo tocó, el de fábrica. */
+export async function readTexto(kind: HojaEditable): Promise<TextoVigente> {
+  await prepare();
+  const doc = await (await textosConsentimiento()).findOne({ kind }, { projection: { _id: 0 } });
+  const texto = doc ? sanitizeTexto(doc) : null;
+  return doc && texto ? { ...texto, version: doc.version } : textoDeFabrica(kind);
+}
+
+export async function readTextos(): Promise<Record<HojaEditable, TextoVigente>> {
+  const textos = await Promise.all(HOJAS_EDITABLES.map((kind) => readTexto(kind)));
+  return Object.fromEntries(HOJAS_EDITABLES.map((kind, index) => [kind, textos[index]])) as Record<HojaEditable, TextoVigente>;
+}
+
+/** Guarda el texto editado como una versión nueva. Las firmas anteriores conservan su copia. */
+export function saveTextoRecord(kind: HojaEditable, input: unknown) {
+  return turn(async () => {
+    const texto = sanitizeTexto(input);
+    if (!texto) throw new Error("Falta el título o el texto.");
+    const actual = await readTexto(kind);
+    const version = `${kind}-v${numeroDeVersion(actual.version) + 1}`;
+    await (await textosConsentimiento()).updateOne(
+      { kind },
+      { $set: { ...texto, kind, version, updatedAt: new Date().toISOString() } },
+      { upsert: true },
+    );
+    return { ...texto, version };
+  });
+}
+
+export function signWithConsentLink(
+  token: string,
+  kind: string,
+  version: string,
+  firma: { aclaracion: string; firmante?: Firmante; dniFirmante?: string },
+  file: File,
+) {
   return turn(async () => {
     await prepare();
     if (!esToken(token)) throw new Error("Este enlace ya no sirve.");
     const links = await consentLinks();
     const link = await links.findOne({ token });
     if (!enlaceVigente(link)) throw new Error("Este enlace ya no sirve.");
+    const hoja = hojaDelEnlace(link);
+    if (hoja !== kind) throw new Error("Este enlace ya no sirve.");
     const patient = await findPatient(link.patientId);
     if (!patient) throw new Error("Este enlace ya no sirve.");
-    await writeSignature(patient.id, "general", file, {
+    // Si Jesica cambió el texto mientras el paciente lo leía, tiene que leer el nuevo.
+    const vigente = await readTexto(hoja);
+    if (version !== vigente.version) throw new Error("El texto cambió. Recargá la página para leer la versión nueva.");
+    await writeSignature(patient.id, hoja, file, {
       source: "pantalla",
-      aclaracion,
-      textVersion: GENERAL_CONSENT_VERSION,
-      piezasSnapshot: piezasDe(patient),
+      aclaracion: firma.aclaracion,
+      textVersion: vigente.version,
+      texto: { titulo: vigente.titulo, apartados: vigente.apartados },
+      ...(hoja === "general"
+        ? { piezasSnapshot: piezasDe(patient) }
+        : { firmante: firma.firmante, dniFirmante: firma.dniFirmante, notas: link.notas ?? [] }),
     });
     await links.updateOne({ token, usedAt: null }, { $set: { usedAt: new Date().toISOString() } });
   });
@@ -656,5 +774,25 @@ export function removePatientRecord(id: string) {
     }
     await (await patients()).deleteOne({ id });
     await (await consentLinks()).deleteMany({ patientId: id });
+  });
+}
+
+/** Los mensajes de WhatsApp de confirmación y recordatorio de turnos, como los dejó Jesica. */
+export async function readMensajesTurno(): Promise<MensajesTurno> {
+  await prepare();
+  const doc = await (await mensajesWhatsapp()).findOne({ id: MENSAJES_TURNO }, { projection: { _id: 0 } });
+  return sanitizeMensajes(doc);
+}
+
+export function saveMensajesRecord(input: unknown) {
+  return turn(async () => {
+    await prepare();
+    const mensajes = sanitizeMensajes(input);
+    await (await mensajesWhatsapp()).updateOne(
+      { id: MENSAJES_TURNO },
+      { $set: { ...mensajes, updatedAt: new Date().toISOString() } },
+      { upsert: true },
+    );
+    return mensajes;
   });
 }

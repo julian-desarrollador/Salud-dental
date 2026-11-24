@@ -27,6 +27,8 @@ export type ConsentKind = "general" | "ortopedia" | "ortodoncia" | "endodoncia" 
 
 export type ConsentSource = "pantalla" | "papel";
 
+export type Firmante = "paciente" | "representante";
+
 export type Evolution = {
   id: string;
   date: string;
@@ -43,6 +45,13 @@ export type SignedConsent = {
   source?: ConsentSource;
   teethSnapshot?: Partial<Record<string, ToothMark>>;
   piezasSnapshot?: Piezas;
+  /** Firmas hechas en el teléfono de Ortodoncia/Ortopedia: quién firmó. */
+  firmante?: Firmante;
+  dniFirmante?: string;
+  /** Lo que Jesica escribió en los espacios de la hoja (diagnóstico, observaciones) al mandarla. */
+  notas?: { label: string; texto: string }[];
+  /** Copia del texto que leyó el paciente al firmar en el teléfono (Jesica puede editarlo después). */
+  texto?: { titulo: string; apartados: { titulo: string; texto: string }[] };
   fileId?: string;
   fileName?: string;
   mime?: string;

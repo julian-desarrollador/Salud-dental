@@ -53,3 +53,23 @@ export function fechaDeInicio(patient: {
   if (isIsoDate(updated)) return updated;
   return todayInArgentina();
 }
+
+/** Hora de una firma en Argentina, como "3:15 p. m.". */
+export function horaFirmada(iso: string | undefined) {
+  if (!iso) return "";
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "";
+  const parts = new Intl.DateTimeFormat("es-AR", {
+    timeZone: "America/Argentina/Buenos_Aires",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  }).formatToParts(date);
+  const texto = (tipo: Intl.DateTimeFormatPartTypes) =>
+    (parts.find((part) => part.type === tipo)?.value ?? "").replace(/[  ]/g, " ").replace(/\s+/g, " ").trim();
+  const hour = texto("hour");
+  const minute = texto("minute");
+  const period = texto("dayPeriod");
+  if (!hour || !minute) return "";
+  return period ? `${hour}:${minute} ${period}` : `${hour}:${minute}`;
+}

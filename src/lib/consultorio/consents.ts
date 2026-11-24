@@ -39,6 +39,10 @@ export type HojaBreve = HojaComun & {
 
 /** Hoja con el texto de Jesica, tal cual lo escribió. */
 export type HojaPropia = HojaComun & {
+  /** Versión del texto: queda guardada con cada firma hecha en el teléfono. */
+  version: string;
+  /** Se puede mandar por WhatsApp para firmar en el teléfono. */
+  porWhatsapp?: boolean;
   /** Renglones a completar debajo de "Paciente". */
   fields: { label: string; dato?: DatoDeLaHoja }[];
   /** Apartados numerados, con su título y sus párrafos. */
@@ -60,6 +64,8 @@ export const consentSheets: ConsentSheet[] = [
     kind: "ortopedia",
     title: "Consentimiento informado para tratamiento de ortopedia dentomaxilar",
     practice: "Ortopedia dentomaxilar",
+    version: "ortopedia-v1",
+    porWhatsapp: true,
     minor: true,
     fields: [
       { label: "DNI", dato: "dni" },
@@ -129,6 +135,8 @@ export const consentSheets: ConsentSheet[] = [
     kind: "ortodoncia",
     title: "Consentimiento informado para tratamiento de ortodoncia",
     practice: "Ortodoncia",
+    version: "ortodoncia-v1",
+    porWhatsapp: true,
     minor: true,
     fields: [
       { label: "DNI", dato: "dni" },
@@ -189,6 +197,13 @@ export const consentSheets: ConsentSheet[] = [
       ["Firma y sello del profesional"],
     ],
   },
+];
+
+/**
+ * Hojas que ya no se ofrecen. Se conservan para mostrar las que algún paciente
+ * ya firmó y subió en foto.
+ */
+export const retiredConsentSheets: ConsentSheet[] = [
   {
     kind: "endodoncia",
     title: "Consentimiento informado · Endodoncia",
@@ -205,13 +220,6 @@ export const consentSheets: ConsentSheet[] = [
     alternatives:
       "Según el estado de la pieza: extraer el diente y, si corresponde, reponerlo después. Dejar el diente sin tratar suele mantener el dolor o la infección.",
   },
-];
-
-/**
- * Hojas que ya no se ofrecen. Se conservan para mostrar las que algún paciente
- * ya firmó y subió en foto.
- */
-export const retiredConsentSheets: ConsentSheet[] = [
   {
     kind: "implante",
     title: "Consentimiento informado · Implante dental",
@@ -252,4 +260,117 @@ export function consentSheet(kind: string) {
 
 export function practiceOf(kind: string) {
   return [...consentSheets, ...retiredConsentSheets].find((sheet) => sheet.kind === kind)?.practice ?? kind;
+}
+
+/** Hoja propia que se puede mandar por WhatsApp (Ortodoncia, Ortopedia). */
+export function hojaPropiaPorWhatsapp(kind: string): HojaPropia | undefined {
+  const sheet = consentSheet(kind);
+  return sheet && "sections" in sheet && sheet.porWhatsapp ? sheet : undefined;
+}
+
+/** Los tres consentimientos que Jesica usa: se mandan por WhatsApp y su texto se puede editar. */
+export type HojaEditable = "general" | "ortodoncia" | "ortopedia";
+export const HOJAS_EDITABLES: HojaEditable[] = ["general", "ortodoncia", "ortopedia"];
+export const NOMBRE_HOJA: Record<HojaEditable, string> = {
+  general: "Odontología general",
+  ortodoncia: "Ortodoncia",
+  ortopedia: "Ortopedia dentomaxilar",
+};
+
+export function esHojaEditable(kind: unknown): kind is HojaEditable {
+  return HOJAS_EDITABLES.includes(kind as HojaEditable);
+}
+
+/** Hojas que se firman con un enlace en el teléfono del paciente. */
+export function sePuedeEnviar(kind: string) {
+  return esHojaEditable(kind);
+}
+
+/** El texto que lee y firma el paciente: un título y apartados (en el general, sin título). */
+export type ApartadoTexto = { titulo: string; texto: string };
+export type TextoConsentimiento = { titulo: string; apartados: ApartadoTexto[] };
+export type TextoVigente = TextoConsentimiento & { version: string };
+
+export const LIMITES_TEXTO = { titulo: 200, apartados: 20, tituloApartado: 120, texto: 3000 };
+
+/** Los párrafos de un apartado: separados por una línea en blanco. */
+export function parrafos(texto: string) {
+  return texto
+    .split(/\n\s*\n/)
+    .map((parrafo) => parrafo.trim())
+    .filter(Boolean);
+}
+
+/** El texto con el que viene cada hoja (la "v1"), antes de que Jesica lo edite. */
+export function textoDeFabrica(kind: HojaEditable): TextoVigente {
+  if (kind === "general") {
+    return {
+      version: GENERAL_CONSENT_VERSION,
+      titulo: generalConsent.title,
+      apartados: [{ titulo: "", texto: generalConsent.paragraphs.join("\n\n") }],
+    };
+  }
+  const sheet = hojaPropiaPorWhatsapp(kind);
+  if (!sheet) throw new Error("Hoja desconocida.");
+  return {
+    version: sheet.version,
+    titulo: sheet.title,
+    apartados: sheet.sections.map((section) => ({ titulo: section.title, texto: section.paragraphs.join("\n\n") })),
+  };
+}
+
+/** Número de una versión ("ortodoncia-v3" → 3). */
+export function numeroDeVersion(version: string) {
+  const match = /-v(\d+)$/.exec(version);
+  return match ? Number(match[1]) : 1;
+}
+
+function textoLimpio(value: unknown, max: number) {
+  return String(value ?? "")
+    .replace(/\r\n?/g, "\n")
+    .trim()
+    .slice(0, max);
+}
+
+/** Texto editado por Jesica, recortado. Null si no queda ningún apartado con texto. */
+export function sanitizeTexto(input: unknown): TextoConsentimiento | null {
+  if (!input || typeof input !== "object") return null;
+  const raw = input as { titulo?: unknown; apartados?: unknown };
+  const titulo = textoLimpio(raw.titulo, LIMITES_TEXTO.titulo).replace(/\s+/g, " ");
+  const apartados = (Array.isArray(raw.apartados) ? raw.apartados : [])
+    .slice(0, LIMITES_TEXTO.apartados)
+    .map((item) => {
+      const apartado = (item && typeof item === "object" ? item : {}) as { titulo?: unknown; texto?: unknown };
+      return {
+        titulo: textoLimpio(apartado.titulo, LIMITES_TEXTO.tituloApartado).replace(/\s+/g, " "),
+        texto: textoLimpio(apartado.texto, LIMITES_TEXTO.texto),
+      };
+    })
+    .filter((apartado) => apartado.texto);
+  if (!titulo || apartados.length === 0) return null;
+  return { titulo, apartados };
+}
+
+export function mismoTexto(a: TextoConsentimiento, b: TextoConsentimiento) {
+  return JSON.stringify({ t: a.titulo, a: a.apartados }) === JSON.stringify({ t: b.titulo, a: b.apartados });
+}
+
+export const MAX_NOTA = 500;
+
+/** Lo que Jesica escribe en los espacios de la hoja antes de mandarla: solo etiquetas de la hoja, sin vacíos. */
+export function sanitizeNotas(kind: string, input: unknown): { label: string; texto: string }[] {
+  const sheet = hojaPropiaPorWhatsapp(kind);
+  if (!sheet || !Array.isArray(input)) return [];
+  const labels = new Set(sheet.blanks.map((blank) => blank.label));
+  const vistas = new Set<string>();
+  const notas: { label: string; texto: string }[] = [];
+  for (const item of input) {
+    if (!item || typeof item !== "object") continue;
+    const label = String((item as { label?: unknown }).label ?? "");
+    const texto = String((item as { texto?: unknown }).texto ?? "").replace(/\r\n?/g, "\n").trim().slice(0, MAX_NOTA);
+    if (!labels.has(label) || vistas.has(label) || !texto) continue;
+    vistas.add(label);
+    notas.push({ label, texto });
+  }
+  return notas;
 }

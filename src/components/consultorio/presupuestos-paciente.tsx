@@ -17,6 +17,7 @@ import {
 } from "@/lib/consultorio/presupuesto";
 import type { FeeItem, ItemPresupuesto, Presupuesto } from "@/lib/consultorio/types";
 import { abrirWhatsapp, enlaceWhatsapp } from "@/lib/consultorio/whatsapp";
+import { BotonWhatsapp } from "@/components/consultorio/boton-whatsapp";
 
 const celda = "min-h-12 w-full rounded-xl border border-sand bg-white px-3 text-lg";
 const accion =
@@ -282,14 +283,9 @@ function TarjetaPresupuesto({
       </label>
 
       <div className="mt-4 flex flex-wrap items-center gap-3">
-        <button
-          type="button"
-          disabled={!conFilas}
-          onClick={compartir}
-          className="inline-flex min-h-12 items-center rounded-full bg-forest px-5 text-lg text-cream disabled:opacity-40"
-        >
+        <BotonWhatsapp disabled={!conFilas} onClick={compartir}>
           Compartir por WhatsApp
-        </button>
+        </BotonWhatsapp>
         <button type="button" className={accion} onClick={onDuplicar}>
           Duplicar
         </button>

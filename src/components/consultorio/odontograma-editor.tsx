@@ -11,7 +11,7 @@ import {
   describirPieza,
 } from "@/components/consultorio/odontograma-lectura";
 import { fechaEnPalabras, todayInArgentina } from "@/lib/consultorio/fecha";
-import { abreviatura, cuadrantes } from "@/lib/consultorio/odontograma";
+import { abreviatura, bordesDelMedio, cuadrantes } from "@/lib/consultorio/odontograma";
 import type { EstadoPrestacion, Piezas, PrestacionCatalogo, PrestacionPieza } from "@/lib/consultorio/types";
 
 const MAX_POR_PIEZA = 20;
@@ -115,11 +115,13 @@ export function OdontogramaEditor({
   return (
     <div>
       <div className="[print-color-adjust:exact]">
-        <div className="grid gap-6 md:grid-cols-2">
+        <div className="grid gap-6 md:grid-cols-2 md:gap-0">
           {cuadrantes.map((cuadrante) => (
-            <div key={cuadrante.title}>
+            <div key={cuadrante.title} className={`@container border-sand ${bordesDelMedio(cuadrante, "md")}`}>
               <h3 className="font-serif text-2xl">{cuadrante.title}</h3>
-              <div className="mt-3 grid grid-cols-4 gap-2">
+              <div
+                className={`mt-3 grid grid-cols-4 gap-2 @lg:grid-cols-8 ${cuadrante.lado === "derecha" ? "[direction:rtl]" : ""}`}
+              >
                 {cuadrante.teeth.map((pieza) => (
                   <button
                     key={pieza}
@@ -130,7 +132,7 @@ export function OdontogramaEditor({
                     }}
                     aria-pressed={elegida === pieza}
                     aria-label={describirPieza(pieza, piezas[pieza])}
-                    className={`flex min-h-16 flex-col overflow-hidden rounded-lg border bg-cream text-lg text-forest ${elegida === pieza ? "border-forest ring-2 ring-forest" : "border-sand"}`}
+                    className={`flex min-h-16 min-w-0 flex-col overflow-hidden rounded-lg border bg-cream text-lg text-forest [direction:ltr] ${elegida === pieza ? "border-forest ring-2 ring-forest" : "border-sand"}`}
                   >
                     <ContenidoPieza pieza={pieza} lista={piezas[pieza]} />
                   </button>

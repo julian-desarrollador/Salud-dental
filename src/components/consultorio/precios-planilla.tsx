@@ -1,12 +1,12 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { savePrecios } from "@/app/consultorio/actions";
 import { Confirmacion } from "@/components/consultorio/confirmacion";
 import { parsePesos, pesos } from "@/lib/consultorio/money";
 import { MAX_NOMBRE_PRESTACION, MAX_TIPO, ordenarPrecios, sanitizePrecios } from "@/lib/consultorio/presupuesto";
 import type { FeeItem } from "@/lib/consultorio/types";
+import { BotonAtras } from "@/components/consultorio/boton-atras";
 
 const celda = "min-h-12 w-full rounded-xl border border-sand bg-white px-3 text-lg";
 const accion =
@@ -137,16 +137,14 @@ export function PreciosPlanilla({ initial, volver }: { initial: FeeItem[]; volve
 
   return (
     <section>
-      <Link href={volver} className="inline-flex h-11 items-center justify-center rounded-2xl border border-sand bg-white px-4 text-forest">
-        Atrás
-      </Link>
+      <BotonAtras href={volver} />
       <h1 className="mt-3 font-serif text-4xl text-forest md:text-5xl">Mis precios</h1>
       <span className="mt-4 block h-0.5 w-16 bg-gold" />
       <p className="mt-6 text-forest">
         Tu lista para armar presupuestos: escribí la categoría, la prestación y el precio. Se guarda sola y no se publica en la página.
       </p>
       {notice ? (
-        <p className="fixed inset-x-0 bottom-20 z-30 bg-sand py-3 text-center text-forest md:bottom-0" role="status">
+        <p className="fixed inset-x-0 bottom-20 z-30 bg-sand py-3 text-center text-forest" role="status">
           {notice}
         </p>
       ) : null}

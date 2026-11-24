@@ -2,7 +2,16 @@
 
 import { redirect } from "next/navigation";
 import { hrefAgenda, mesDe, minutos, type Tramo } from "@/lib/consultorio/agenda-horario";
-import { buscarPacientes, cancelarTurno, crearBloqueo, crearTurno, leerAgenda, quitarBloqueo } from "@/lib/consultorio/agenda";
+import {
+  buscarPacientes,
+  cancelarTurno,
+  crearBloqueo,
+  crearTurno,
+  leerAgenda,
+  marcarAvisoTurno,
+  quitarBloqueo,
+  type AvisoTurno,
+} from "@/lib/consultorio/agenda";
 import { requireSession } from "@/lib/consultorio/guard";
 
 function esRedirect(error: unknown) {
@@ -52,7 +61,8 @@ export async function guardarTurno(input: {
   try {
     const { turno, whatsappEnviado } = await crearTurno(input);
     const destino = hrefAgenda(mesDe(turno.dateKey), turno.dateKey);
-    redirect(whatsappEnviado ? destino : `${destino}&whatsapp=no`);
+    // Cae en el día del turno, donde está el botón para mandarle la confirmación.
+    redirect(`${whatsappEnviado ? destino : `${destino}&whatsapp=no`}#dia-elegido`);
   } catch (error) {
     if (esRedirect(error)) throw error;
     return { error: error instanceof Error ? error.message : "No se pudo guardar el turno." };
@@ -63,6 +73,12 @@ export async function anularTurno(id: string, dia: string) {
   await requireSession();
   await cancelarTurno(id);
   redirect(hrefAgenda(mesDe(dia), dia, true));
+}
+
+export async function marcarAviso(id: string, aviso: AvisoTurno, enviado: boolean) {
+  await requireSession();
+  if (aviso !== "confirmacion" && aviso !== "recordatorio") throw new Error("Aviso inválido.");
+  await marcarAvisoTurno(String(id), aviso, enviado === true);
 }
 
 export async function guardarBloqueo(input: {

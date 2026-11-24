@@ -1,10 +1,10 @@
 "use client";
 
-import Link from "next/link";
 import { useState } from "react";
 import { guardarBloqueo } from "@/app/consultorio/agenda/actions";
 import { horariosDeFin, horariosDeInicio } from "@/lib/consultorio/agenda-horario";
 import { CalendarioCampo } from "@/components/consultorio/calendario-campo";
+import { BotonAtras } from "@/components/consultorio/boton-atras";
 
 export function BloqueoForm({ dia }: { dia: string }) {
   const [dateKey, setDateKey] = useState(dia);
@@ -26,9 +26,7 @@ export function BloqueoForm({ dia }: { dia: string }) {
 
   return (
     <div className="mx-auto max-w-lg">
-      <Link href={`/consultorio/agenda?dia=${dia}`} className="text-forest">
-        Agenda
-      </Link>
+      <BotonAtras href={`/consultorio/agenda?dia=${dia}`} />
       <h1 className="mt-3 font-serif text-4xl text-forest">Bloquear horario</h1>
       <p className="mt-2 text-muted">Para un almuerzo o un hueco. No se agenda un paciente.</p>
       <div className="mt-6 grid gap-4">

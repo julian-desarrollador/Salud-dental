@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { crearEnlaceFirma, deletePatient, guardarFirma, quitarArchivoFicha, savePatientFields, subirArchivoFicha } from "@/app/consultorio/actions";
 import { AntecedentesMedicos } from "@/components/consultorio/antecedentes-medicos";
@@ -11,12 +10,22 @@ import { OdontogramaEditor } from "@/components/consultorio/odontograma-editor";
 import { OdontogramaPiezasLectura } from "@/components/consultorio/odontograma-lectura";
 import { PlanTratamiento } from "@/components/consultorio/plan-tratamiento";
 import { PresupuestosPaciente } from "@/components/consultorio/presupuestos-paciente";
-import { consentSheets, generalConsent, practiceOf, retiredConsentSheets } from "@/lib/consultorio/consents";
+import {
+  HOJAS_EDITABLES,
+  NOMBRE_HOJA,
+  hojaPropiaPorWhatsapp,
+  practiceOf,
+  retiredConsentSheets,
+  textoDeFabrica,
+} from "@/lib/consultorio/consents";
+import { BotonWhatsapp } from "@/components/consultorio/boton-whatsapp";
+import { ApartadosDelTexto } from "@/components/consultorio/texto-consentimiento";
 import { abrirWhatsapp, enlaceWhatsapp } from "@/lib/consultorio/whatsapp";
-import { edadEn, edadEscrita, fechaDeInicio, fechaEnPalabras, todayInArgentina } from "@/lib/consultorio/fecha";
+import { edadEn, edadEscrita, fechaDeInicio, fechaEnPalabras, horaFirmada, todayInArgentina } from "@/lib/consultorio/fecha";
 import { piezasDe } from "@/lib/consultorio/odontograma";
 import { presupuestoNuevo } from "@/lib/consultorio/presupuesto";
 import type { ChartFile, FeeItem, Patient, PreguntaMedica, PrestacionCatalogo } from "@/lib/consultorio/types";
+import { BotonAtras } from "@/components/consultorio/boton-atras";
 
 const tabs = [
   { id: "datos", label: "Datos" },
@@ -88,7 +97,7 @@ export function FichaEditor({
   catalogo,
   precios,
   volver,
-  enlaceInicial,
+  enlaces,
   tabInicial,
   nuevoPresupuesto = false,
 }: {
@@ -97,7 +106,8 @@ export function FichaEditor({
   catalogo: PrestacionCatalogo[];
   precios: FeeItem[];
   volver: string;
-  enlaceInicial: string;
+  /** Enlaces para firmar en el teléfono que todavía sirven, por hoja. */
+  enlaces: EnlacesVigentes;
   tabInicial?: string;
   /** Se llegó desde "Nuevo presupuesto": la ficha abre con uno ya creado. */
   nuevoPresupuesto?: boolean;
@@ -278,9 +288,7 @@ export function FichaEditor({
 
   return (
     <div>
-      <Link href={volver} scroll={false} aria-label="Atrás" className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-sand bg-white text-forest print:hidden">
-        <BackArrow />
-      </Link>
+      <BotonAtras href={volver} scroll={false} />
       <h1 className="mt-3 font-serif text-4xl text-forest md:text-5xl">{patient.name || "Sin nombre"}</h1>
       <p className="mt-2 hidden text-muted print:block">Od. Jesica Brenda Goroso · Odontología</p>
       <div className="mt-6 grid grid-cols-2 gap-2 print:hidden sm:grid-cols-3 lg:grid-cols-6" role="tablist">
@@ -298,7 +306,7 @@ export function FichaEditor({
         ))}
       </div>
       {notice ? (
-        <p className="fixed inset-x-0 bottom-20 z-30 bg-sand py-3 text-center text-forest print:hidden md:bottom-0" role="status">
+        <p className="fixed inset-x-0 bottom-20 z-30 bg-sand py-3 text-center text-forest print:hidden" role="status">
           {notice}
         </p>
       ) : null}
@@ -541,62 +549,19 @@ export function FichaEditor({
 
       <section className={tab === "firmas" ? "mt-8" : "mt-8 hidden print:block"}>
         <h2 className="font-serif text-3xl">Consentimientos informados</h2>
-        <p className="mt-3 text-forest print:hidden">
-          El consentimiento general lo firma el paciente con un enlace. Las otras hojas se pueden imprimir y subir en foto.
-        </p>
-        <GeneralFirmado
-          patient={patient}
-          enlaceInicial={enlaceInicial}
-          onPhoto={(file) => void onPhoto("general", file)}
-        />
-        <h3 className="mt-10 font-serif text-2xl print:hidden">Otras hojas</h3>
-        <ul className="mt-2 print:hidden">
-          {consentSheets.map((sheet) => {
-            const signed = patient.consents.find((item) => item.kind === sheet.kind);
-            return (
-              <li key={sheet.kind} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-sand py-3">
-                <p>
-                  {sheet.practice}
-                  {signed?.fileId ? (
-                    <span className="text-muted"> · {signed.signedOn.split("-").reverse().join("/")}</span>
-                  ) : null}
-                  {sheet.draft ? <span className="block text-sm font-semibold text-[#b3261e]">Borrador: falta el texto de Jesica</span> : null}
-                </p>
-                <p className="flex flex-wrap gap-2">
-                  {signed?.fileId ? (
-                    <a className={accion} href={`/consultorio/archivo/${signed.fileId}`}>
-                      Ver
-                    </a>
-                  ) : null}
-                  <a
-                    className={accion}
-                    href={`/consultorio/consentimientos/${sheet.kind}?${new URLSearchParams({
-                      nombre: patient.name,
-                      dni: patient.document,
-                      nacimiento: patient.birthDate.split("-").reverse().join("/"),
-                      volver: `/consultorio/pacientes/${patient.id}?${new URLSearchParams({ tab: "firmas", volver })}`,
-                    })}`}
-                  >
-                    Imprimir
-                  </a>
-                  <label className={accion}>
-                    Subir foto
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="sr-only"
-                      onChange={(event) => {
-                        const file = event.target.files?.[0];
-                        event.target.value = "";
-                        if (file) void onPhoto(sheet.kind, file);
-                      }}
-                    />
-                  </label>
-                </p>
-              </li>
-            );
-          })}
-        </ul>
+        <div className="mt-6 grid max-w-2xl gap-4 print:hidden">
+          {HOJAS_EDITABLES.map((kind) => (
+            <TarjetaConsentimiento
+              key={kind}
+              kind={kind}
+              patient={patient}
+              enlace={enlaces[kind]}
+              volver={`/consultorio/pacientes/${patient.id}?${new URLSearchParams({ tab: "firmas", volver })}`}
+              onPhoto={(file) => void onPhoto(kind, file)}
+            />
+          ))}
+        </div>
+        <GeneralImpreso patient={patient} />
         {firmadasRetiradas.length > 0 ? (
           <>
             <h3 className="mt-10 font-serif text-2xl print:hidden">Hojas que ya no se usan</h3>
@@ -689,71 +654,297 @@ export function FichaEditor({
   );
 }
 
-function horaFirmada(iso: string | undefined) {
-  if (!iso) return "";
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return "";
-  const parts = new Intl.DateTimeFormat("es-AR", {
-    timeZone: "America/Argentina/Buenos_Aires",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: true,
-  }).formatToParts(date);
-  const texto = (tipo: Intl.DateTimeFormatPartTypes) =>
-    (parts.find((part) => part.type === tipo)?.value ?? "").replace(/[\u00A0\u202F]/g, " ").replace(/\s+/g, " ").trim();
-  const hour = texto("hour");
-  const minute = texto("minute");
-  const period = texto("dayPeriod");
-  if (!hour || !minute) return "";
-  return period ? `${hour}:${minute} ${period}` : `${hour}:${minute}`;
-}
+type Nota = { label: string; texto: string };
+type HojaDeEnlace = "general" | "ortodoncia" | "ortopedia";
+export type EnlacesVigentes = Partial<Record<HojaDeEnlace, { url: string; notas: Nota[] }>>;
 
-function whatsappDeLaFirma(path: string, contacto: string) {
+function whatsappDeLaFirma(path: string, contacto: string, practica?: string) {
   const absoluta = new URL(path, window.location.origin).href;
-  return enlaceWhatsapp(contacto, `Hola, te dejo el consentimiento informado para firmar:\n${absoluta}`);
+  const de = practica ? ` de ${practica}` : "";
+  return enlaceWhatsapp(contacto, `Hola, te dejo el consentimiento informado${de} para firmar:\n${absoluta}`);
 }
 
-function GeneralFirmado({
+/**
+ * Crea el enlace para firmar en el teléfono y abre WhatsApp con el mensaje.
+ * La pestaña se abre antes de pedir el enlace para que el navegador no la bloquee.
+ */
+async function compartirEnlace(opciones: {
+  patientId: string;
+  kind: HojaDeEnlace;
+  notas: Nota[];
+  contacto: string;
+  practica?: string;
+}): Promise<{ url: string } | { error: string }> {
+  const ventana = window.open("", "_blank");
+  try {
+    const result = await crearEnlaceFirma(opciones.patientId, opciones.kind, opciones.notas);
+    if ("error" in result) {
+      ventana?.close();
+      return result;
+    }
+    const url = whatsappDeLaFirma(result.url, opciones.contacto, opciones.practica);
+    if (ventana) ventana.location.href = url;
+    else abrirWhatsapp(url);
+    return result;
+  } catch {
+    ventana?.close();
+    return { error: "No se pudo crear el enlace. Probá de nuevo." };
+  }
+}
+
+type NombreIcono = "diagnostico" | "editar" | "imprimir" | "foto" | "enlace" | "listo";
+
+/** Íconos de línea de "Más opciones", del mismo trazo que los del menú. */
+function IconoOpcion({ nombre }: { nombre: NombreIcono }) {
+  const trazos: Record<NombreIcono, React.ReactNode> = {
+    diagnostico: (
+      <>
+        <path strokeLinejoin="round" d="M7 4.2h7.2L18.8 9v10.3a1.2 1.2 0 0 1-1.2 1.2H7a1.2 1.2 0 0 1-1.2-1.2V5.4A1.2 1.2 0 0 1 7 4.2Z" />
+        <path strokeLinecap="round" d="M12.3 11.5v6M9.3 14.5h6" />
+      </>
+    ),
+    editar: (
+      <>
+        <path strokeLinejoin="round" d="M4.5 19.5h3.8L18.6 9.2a2.1 2.1 0 0 0-3-3L5.3 16.5l-.8 3Z" />
+        <path d="m13.8 8 2.9 2.9" />
+      </>
+    ),
+    imprimir: (
+      <>
+        <path strokeLinejoin="round" d="M7 9V4h10v5" />
+        <path strokeLinejoin="round" d="M7 17H4.8A1.3 1.3 0 0 1 3.5 15.7v-5.4A1.3 1.3 0 0 1 4.8 9h14.4a1.3 1.3 0 0 1 1.3 1.3v5.4a1.3 1.3 0 0 1-1.3 1.3H17" />
+        <path strokeLinejoin="round" d="M7 13.5h10V20H7z" />
+      </>
+    ),
+    foto: (
+      <>
+        <path strokeLinejoin="round" d="M3.8 8.6a1.4 1.4 0 0 1 1.4-1.4h2.6l1.6-2.2h5.2l1.6 2.2h2.6a1.4 1.4 0 0 1 1.4 1.4v9.2a1.4 1.4 0 0 1-1.4 1.4H5.2a1.4 1.4 0 0 1-1.4-1.4V8.6Z" />
+        <circle cx="12" cy="12.8" r="3.2" />
+      </>
+    ),
+    enlace: (
+      <>
+        <path strokeLinecap="round" d="M10.2 13.8a3.6 3.6 0 0 0 5.1 0l3-3a3.6 3.6 0 0 0-5.1-5.1l-1 1" />
+        <path strokeLinecap="round" d="M13.8 10.2a3.6 3.6 0 0 0-5.1 0l-3 3a3.6 3.6 0 0 0 5.1 5.1l1-1" />
+      </>
+    ),
+    listo: <path strokeLinecap="round" strokeLinejoin="round" d="m5 12.5 4.5 4.5L19 7.5" />,
+  };
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      className="h-6 w-6 shrink-0 text-forest/70"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.75"
+    >
+      {trazos[nombre]}
+    </svg>
+  );
+}
+
+/** Uno de los tres consentimientos en la ficha: estado, WhatsApp y, si se quiere, más opciones. */
+function TarjetaConsentimiento({
+  kind,
   patient,
-  enlaceInicial,
+  enlace,
+  volver,
   onPhoto,
 }: {
+  kind: HojaDeEnlace;
   patient: Patient;
-  enlaceInicial: string;
+  enlace?: { url: string; notas: Nota[] };
+  volver: string;
   onPhoto: (file: File) => void;
 }) {
-  const [enlace, setEnlace] = useState(enlaceInicial);
-  const [direccion, setDireccion] = useState(enlaceInicial);
-  const [creando, setCreando] = useState(false);
+  const propia = kind === "general" ? undefined : hojaPropiaPorWhatsapp(kind);
+  const signed = patient.consents.find((item) => item.kind === kind);
+  const [enlaceActual, setEnlaceActual] = useState(enlace?.url ?? "");
+  const [mas, setMas] = useState(false);
+  const [conDiagnostico, setConDiagnostico] = useState(false);
+  const [textos, setTextos] = useState<Record<string, string>>(() =>
+    Object.fromEntries((enlace?.notas ?? []).map((nota) => [nota.label, nota.texto])),
+  );
+  const [enviando, setEnviando] = useState(false);
   const [copiado, setCopiado] = useState(false);
-  const [errorEnlace, setErrorEnlace] = useState("");
-  useEffect(() => {
-    if (!enlace) return;
-    setDireccion(new URL(enlace, window.location.origin).href);
-  }, [enlace]);
-  const signed = patient.consents.find((item) => item.kind === "general");
-  const hora = horaFirmada(signed?.signedAt);
-  const version = signed?.textVersion === generalConsent.version ? generalConsent.paragraphs : null;
+  const [error, setError] = useState("");
+  const porTelefono = signed?.source === "pantalla";
+  const verFirmada = `/consultorio/consentimientos/${kind}?${new URLSearchParams({ paciente: patient.id, volver })}`;
+  const imprimir = `/consultorio/consentimientos/${kind}?${new URLSearchParams({
+    nombre: patient.name,
+    dni: patient.document,
+    nacimiento: patient.birthDate.split("-").reverse().join("/"),
+    volver,
+  })}`;
+  const opcionMenu =
+    "flex min-h-12 w-full cursor-pointer items-center gap-3 rounded-xl px-2 py-1.5 text-left text-forest hover:bg-cream";
+
+  let estado = "Sin firmar";
+  if (signed) {
+    const quien = signed.aclaracion
+      ? ` por ${signed.aclaracion}${signed.firmante === "representante" ? " (madre, padre o representante)" : ""}`
+      : "";
+    estado = `✓ Firmado el ${signed.signedOn.split("-").reverse().join("/")}${quien}${signed.source === "papel" ? " · foto del papel" : ""}`;
+  } else if (enlaceActual) {
+    estado = "Enviado por WhatsApp, falta que firme";
+  }
+
+  async function enviar() {
+    if (enviando) return;
+    setEnviando(true);
+    setError("");
+    setCopiado(false);
+    const notas =
+      propia && conDiagnostico
+        ? propia.blanks
+            .map((blank) => ({ label: blank.label, texto: (textos[blank.label] ?? "").trim() }))
+            .filter((nota) => nota.texto)
+        : [];
+    const result = await compartirEnlace({
+      patientId: patient.id,
+      kind,
+      notas,
+      contacto: patient.contact,
+      practica: kind === "general" ? undefined : NOMBRE_HOJA[kind],
+    });
+    setEnviando(false);
+    if ("error" in result) {
+      setError(result.error);
+      return;
+    }
+    setEnlaceActual(result.url);
+    setConDiagnostico(false);
+  }
+
   return (
-    <article className="mt-6 break-inside-avoid rounded-2xl border border-sand bg-white p-4">
-      <h3 className="font-serif text-2xl">{generalConsent.practice}</h3>
+    <article aria-labelledby={`consentimiento-${kind}`} className="rounded-2xl border border-sand bg-white p-4 sm:p-5">
+      <h3 id={`consentimiento-${kind}`} className="font-serif text-2xl text-forest">
+        {NOMBRE_HOJA[kind]}
+      </h3>
+      <p className={`mt-1 ${signed ? "text-[#1a7a3e]" : "text-muted"}`}>{estado}</p>
+
+      {propia && conDiagnostico ? (
+        <div className="mt-4 grid gap-3">
+          {propia.blanks.map((blank) => (
+            <label key={blank.label} className="block text-forest">
+              {blank.label} <span className="text-muted">(opcional)</span>
+              <textarea
+                value={textos[blank.label] ?? ""}
+                maxLength={500}
+                rows={blank.lines}
+                onChange={(event) => setTextos((actual) => ({ ...actual, [blank.label]: event.target.value }))}
+                className="mt-1 min-h-12 w-full rounded-xl border border-sand bg-white px-3 py-2 text-lg text-forest field-sizing-content"
+              />
+            </label>
+          ))}
+        </div>
+      ) : null}
+
+      <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-3">
+        <BotonWhatsapp onClick={() => void enviar()} disabled={enviando} className="w-full sm:w-auto">
+          {enviando
+            ? "Abriendo WhatsApp…"
+            : conDiagnostico
+              ? "Enviar con diagnóstico"
+              : signed || enlaceActual
+                ? "Enviar de nuevo"
+                : "Enviar por WhatsApp"}
+        </BotonWhatsapp>
+        {signed?.fileId ? (
+          <a href={porTelefono ? verFirmada : `/consultorio/archivo/${signed.fileId}`} className="min-h-11 content-center text-lg text-forest underline underline-offset-4">
+            Ver
+          </a>
+        ) : null}
+        {conDiagnostico ? (
+          <button type="button" onClick={() => setConDiagnostico(false)} className="min-h-11 cursor-pointer text-forest">
+            Cancelar
+          </button>
+        ) : null}
+      </div>
+      {error ? <p className="mt-3 text-[#6b2e2a]">{error}</p> : null}
+
+      <button
+        type="button"
+        aria-expanded={mas}
+        onClick={() => setMas((actual) => !actual)}
+        className="mt-3 inline-flex min-h-11 cursor-pointer items-center gap-1 text-muted"
+      >
+        Más opciones
+        <span aria-hidden="true" className={`inline-block transition-transform ${mas ? "rotate-90" : ""}`}>
+          ›
+        </span>
+      </button>
+      {mas ? (
+        <div className="mt-1 grid gap-0.5 border-t border-sand pt-2">
+          {propia && !conDiagnostico ? (
+            <button type="button" className={opcionMenu} onClick={() => setConDiagnostico(true)}>
+              <IconoOpcion nombre="diagnostico" />
+              Agregar diagnóstico antes de enviar
+            </button>
+          ) : null}
+          <a className={opcionMenu} href={`/consultorio/consentimientos/${kind}?${new URLSearchParams({ volver })}`}>
+            <IconoOpcion nombre="editar" />
+            Ver o editar el texto
+          </a>
+          <a className={opcionMenu} href={imprimir}>
+            <IconoOpcion nombre="imprimir" />
+            Imprimir para firmar en papel
+          </a>
+          <label className={`${opcionMenu} has-[input:focus-visible]:outline-2 has-[input:focus-visible]:outline-forest`}>
+            <IconoOpcion nombre="foto" />
+            Subir foto del papel firmado
+            <input
+              type="file"
+              accept="image/*"
+              className="sr-only"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                event.target.value = "";
+                if (file) onPhoto(file);
+              }}
+            />
+          </label>
+          {enlaceActual && !signed ? (
+            <button
+              type="button"
+              className={opcionMenu}
+              onClick={() => {
+                const absoluta = new URL(enlaceActual, window.location.origin).href;
+                void navigator.clipboard.writeText(absoluta).then(
+                  () => setCopiado(true),
+                  () => setCopiado(false),
+                );
+              }}
+            >
+              <IconoOpcion nombre={copiado ? "listo" : "enlace"} />
+              {copiado ? "Enlace copiado" : "Copiar enlace"}
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+    </article>
+  );
+}
+
+/** Al imprimir la ficha, el consentimiento general sale completo (en pantalla está en "Ver"). */
+function GeneralImpreso({ patient }: { patient: Patient }) {
+  const signed = patient.consents.find((item) => item.kind === "general");
+  const fabrica = textoDeFabrica("general");
+  const texto = signed?.texto ?? (signed?.textVersion === fabrica.version ? fabrica : null);
+  const hora = horaFirmada(signed?.signedAt);
+  return (
+    <article className="mt-6 hidden break-inside-avoid print:block">
+      <h3 className="font-serif text-2xl">{NOMBRE_HOJA.general}</h3>
       {signed ? (
         <>
-          <p className="mt-2 text-forest">
+          <p className="mt-2">
             Firmó el {signed.signedOn.split("-").reverse().join("/")}
             {hora ? ` a las ${hora}` : ""}
             {signed.source === "papel" ? " · foto del papel" : ""}
           </p>
           {signed.aclaracion ? <p className="mt-2">Aclaración: {signed.aclaracion}</p> : null}
-          {version ? (
-            <div className="mt-4 space-y-3 text-base leading-6">
-              {version.map((paragraph) => (
-                <p key={paragraph}>{paragraph}</p>
-              ))}
-            </div>
-          ) : signed.textVersion ? (
-            <p className="mt-3 text-muted">Firmado con una versión anterior del texto ({signed.textVersion}).</p>
-          ) : null}
+          {texto ? <ApartadosDelTexto texto={texto} compacto /> : null}
           {signed.piezasSnapshot ? (
             <div className="mt-4">
               <p className="text-muted">Odontograma al firmar</p>
@@ -773,82 +964,13 @@ function GeneralFirmado({
             <img
               src={`/consultorio/archivo/${signed.fileId}`}
               alt={signed.source === "papel" ? "Foto del consentimiento firmado" : "Firma del paciente"}
-              className="mt-4 max-h-48 w-full rounded-xl border border-sand object-contain"
+              className="mt-4 max-h-48 w-full object-contain"
             />
           ) : null}
         </>
       ) : (
-        <p className="mt-2 text-muted">Todavía no está firmado.</p>
+        <p className="mt-2">Sin firmar.</p>
       )}
-      <div className="mt-4 print:hidden">
-        <button
-          type="button"
-          disabled={creando}
-          onClick={() => {
-            setErrorEnlace("");
-            setCopiado(false);
-            if (enlace) {
-              abrirWhatsapp(whatsappDeLaFirma(enlace, patient.contact));
-              return;
-            }
-            const ventana = window.open("", "_blank");
-            setCreando(true);
-            void crearEnlaceFirma(patient.id).then((result) => {
-              setCreando(false);
-              if ("error" in result) {
-                ventana?.close();
-                setErrorEnlace(result.error);
-                return;
-              }
-              setEnlace(result.url);
-              const url = whatsappDeLaFirma(result.url, patient.contact);
-              if (ventana) ventana.location.href = url;
-              else abrirWhatsapp(url);
-            });
-          }}
-          className="inline-flex h-12 w-full items-center justify-center rounded-full bg-forest px-5 text-lg text-cream disabled:opacity-40"
-        >
-          {creando ? "Abriendo WhatsApp…" : "Compartir por WhatsApp"}
-        </button>
-        <p className="mt-2 text-muted">Se abre WhatsApp con el enlace. El paciente lo firma en su teléfono.</p>
-        {errorEnlace ? <p className="mt-2 text-[#6b2e2a]">{errorEnlace}</p> : null}
-        {enlace ? (
-          <div className="mt-3">
-            <p className="break-all text-forest">{direccion}</p>
-            <button
-              type="button"
-              className={`${accion} mt-3`}
-              onClick={() => {
-                const absoluta = new URL(enlace, window.location.origin).href;
-                void navigator.clipboard.writeText(absoluta).then(
-                  () => setCopiado(true),
-                  () => setCopiado(false),
-                );
-              }}
-            >
-              {copiado ? "Copiado" : "Copiar"}
-            </button>
-          </div>
-        ) : null}
-        <p className="mt-3 flex flex-wrap gap-2">
-          <label className={accion}>
-            Subir foto del papel
-            <input
-              type="file"
-              accept="image/*"
-              className="sr-only"
-              onChange={(event) => {
-                const file = event.target.files?.[0];
-                event.target.value = "";
-                if (file) onPhoto(file);
-              }}
-            />
-          </label>
-          <button type="button" className={accion} onClick={() => window.print()}>
-            Imprimir
-          </button>
-        </p>
-      </div>
     </article>
   );
 }
@@ -861,10 +983,3 @@ function esWord(file: ChartFile) {
   return file.mime.includes("word") || /\.docx?$/i.test(file.fileName);
 }
 
-function BackArrow() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2.2">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M19 12H5M12 19l-7-7 7-7" />
-    </svg>
-  );
-}

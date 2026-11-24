@@ -3,7 +3,7 @@ import { FichaEditor } from "@/components/consultorio/ficha-editor";
 import { ConsultorioShell } from "@/components/consultorio/shell";
 import { destinoInterno } from "@/lib/consultorio/destino";
 import { requireSession } from "@/lib/consultorio/guard";
-import { activeConsentLink, readCatalogoOdontograma, readPreguntasMedicas, readStore } from "@/lib/consultorio/store";
+import { activeConsentLinks, readCatalogoOdontograma, readPreguntasMedicas, readStore } from "@/lib/consultorio/store";
 
 export default async function FichaPage(props: PageProps<"/consultorio/pacientes/[id]">) {
   await requireSession();
@@ -12,8 +12,8 @@ export default async function FichaPage(props: PageProps<"/consultorio/pacientes
   const store = await readStore();
   const patient = store.patients.find((item) => item.id === id);
   if (!patient) notFound();
-  const [token, preguntas, catalogo] = await Promise.all([
-    activeConsentLink(patient.id),
+  const [enlaces, preguntas, catalogo] = await Promise.all([
+    activeConsentLinks(patient.id),
     readPreguntasMedicas(),
     readCatalogoOdontograma(),
   ]);
@@ -26,7 +26,7 @@ export default async function FichaPage(props: PageProps<"/consultorio/pacientes
         catalogo={catalogo}
         precios={store.fees}
         volver={destinoInterno(query.volver)}
-        enlaceInicial={token ? `/firmar/${token}` : ""}
+        enlaces={enlaces}
         tabInicial={typeof query.tab === "string" ? query.tab : undefined}
         nuevoPresupuesto={query.tab === "presupuestos" && query.nuevo === "1"}
       />

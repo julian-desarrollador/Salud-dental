@@ -16,13 +16,15 @@ import {
   removeChartFile,
   removePatientRecord,
   saveFeeList,
+  saveMensajesRecord,
+  saveTextoRecord,
   saveCatalogoRecord,
   savePatientRecord,
   savePreguntasRecord,
   saveSignature,
   signWithConsentLink,
 } from "@/lib/consultorio/store";
-import { GENERAL_CONSENT_VERSION, consentSheet } from "@/lib/consultorio/consents";
+import { GENERAL_CONSENT_VERSION, consentSheet, esHojaEditable, sePuedeEnviar } from "@/lib/consultorio/consents";
 import { sanitizePiezas } from "@/lib/consultorio/odontograma";
 import type { ConsentKind, Patient } from "@/lib/consultorio/types";
 
@@ -78,6 +80,16 @@ export async function savePreguntasMedicas(input: unknown): Promise<{ error: str
   return { ok: true };
 }
 
+export async function saveMensajesTurno(input: unknown): Promise<{ error: string } | { ok: true }> {
+  await requireSession();
+  try {
+    await saveMensajesRecord(input);
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "No se pudo guardar." };
+  }
+  return { ok: true };
+}
+
 export async function saveCatalogoOdontograma(input: unknown): Promise<{ error: string } | { ok: true }> {
   await requireSession();
   try {
@@ -107,10 +119,15 @@ export async function guardarFirma(formData: FormData): Promise<{ error: string 
   }
 }
 
-export async function crearEnlaceFirma(patientId: string): Promise<{ error: string } | { url: string }> {
+export async function crearEnlaceFirma(
+  patientId: string,
+  kind: string = "general",
+  notas: unknown = [],
+): Promise<{ error: string } | { url: string }> {
   await requireSession();
+  if (!sePuedeEnviar(kind)) return { error: "Esa hoja no se puede mandar por WhatsApp." };
   try {
-    const link = await createConsentLink(patientId);
+    const link = await createConsentLink(patientId, kind, notas);
     return { url: `/firmar/${link.token}` };
   } catch (error) {
     return { error: error instanceof Error ? error.message : "No se pudo crear el enlace." };
@@ -119,20 +136,39 @@ export async function crearEnlaceFirma(patientId: string): Promise<{ error: stri
 
 export async function firmarConEnlace(formData: FormData): Promise<{ error: string } | { ok: true }> {
   const token = String(formData.get("token") ?? "");
+  const kind = String(formData.get("kind") ?? "general");
   const aclaracion = String(formData.get("aclaracion") ?? "").trim();
   const textVersion = String(formData.get("textVersion") ?? "");
+  const firmanteRaw = String(formData.get("firmante") ?? "");
+  const dniFirmante = String(formData.get("dniFirmante") ?? "").trim();
   const scan = formData.get("scan");
-  if (textVersion !== GENERAL_CONSENT_VERSION) {
+  if (!sePuedeEnviar(kind) || !textVersion) {
     return { error: "Este enlace ya no sirve." };
+  }
+  const firmante = firmanteRaw === "paciente" || firmanteRaw === "representante" ? firmanteRaw : undefined;
+  if (kind !== "general") {
+    if (!firmante) return { error: "Elegí quién firma." };
+    if (firmante === "representante" && !dniFirmante) return { error: "Falta el DNI de quien firma." };
   }
   if (!aclaracion) return { error: "Falta la aclaración." };
   if (!(scan instanceof File) || scan.size === 0) return { error: "Falta la firma." };
   try {
-    await signWithConsentLink(token, aclaracion, scan);
+    await signWithConsentLink(token, kind, textVersion, { aclaracion, firmante, dniFirmante }, scan);
     return { ok: true };
   } catch (error) {
     return { error: error instanceof Error ? error.message : "No se pudo guardar la firma." };
   }
+}
+
+export async function saveConsentimientoTexto(kind: string, input: unknown): Promise<{ error: string } | { ok: true }> {
+  await requireSession();
+  if (!esHojaEditable(kind)) return { error: "Esa hoja no se puede editar." };
+  try {
+    await saveTextoRecord(kind, input);
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "No se pudo guardar." };
+  }
+  return { ok: true };
 }
 
 export async function firmarEnPantalla(formData: FormData): Promise<{ error: string } | { patient: Patient }> {

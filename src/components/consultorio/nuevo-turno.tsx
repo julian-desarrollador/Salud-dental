@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { buscarFichas, guardarTurno, ocupacionDelDia } from "@/app/consultorio/agenda/actions";
 import { Confirmacion } from "@/components/consultorio/confirmacion";
@@ -23,6 +22,7 @@ import {
 } from "@/lib/consultorio/agenda-horario";
 import { claveNombre } from "@/lib/consultorio/nombre";
 import { todayInArgentina } from "@/lib/consultorio/fecha";
+import { BotonAtras } from "@/components/consultorio/boton-atras";
 
 type Ficha = { id: string; name: string; contact: string };
 
@@ -50,7 +50,6 @@ export function NuevoTurno({ dia }: { dia: string }) {
   const [otra, setOtra] = useState(false);
   const [minutosOtra, setMinutosOtra] = useState("");
   const [reason, setReason] = useState("");
-  const [reminder, setReminder] = useState(true);
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
   const [pasado, setPasado] = useState<string | null>(null);
@@ -111,7 +110,6 @@ export function NuevoTurno({ dia }: { dia: string }) {
     setName(ficha.name);
     if (!phoneRef.current.trim()) {
       setPhone(ficha.contact);
-      setReminder(telefonoValido(ficha.contact));
     }
   }, [fichas, query, step]);
 
@@ -191,7 +189,6 @@ export function NuevoTurno({ dia }: { dia: string }) {
     setName(ficha.name);
     setPhone(ficha.contact);
     setQuery(ficha.name);
-    setReminder(telefonoValido(ficha.contact));
   }
 
   function seguir() {
@@ -200,10 +197,6 @@ export function NuevoTurno({ dia }: { dia: string }) {
     if (step === 2 && !timeLocal) return;
     if (step === 3 && name.trim().length < 2) {
       setError("Completá el nombre.");
-      return;
-    }
-    if (step === 4 && reminder && phone.trim() && !telefonoValido(phone)) {
-      setError("Revisá el teléfono para el recordatorio.");
       return;
     }
     if (step === 4) {
@@ -244,7 +237,8 @@ export function NuevoTurno({ dia }: { dia: string }) {
       timeLocal,
       durationMinutes: duration,
       reason,
-      reminder,
+      // Sin casilla: los avisos se mandan a mano desde la agenda. Queda listo por si se automatiza.
+      reminder: telefonoValido(phone),
     });
     if (result?.error) {
       setError(result.error);
@@ -260,13 +254,9 @@ export function NuevoTurno({ dia }: { dia: string }) {
   return (
     <div className="mx-auto max-w-lg lg:max-w-2xl">
       {step === 1 ? (
-        <Link href={`/consultorio/agenda?dia=${dia}`} aria-label="Atrás" className={backClass}>
-          <BackArrow />
-        </Link>
+        <BotonAtras href={`/consultorio/agenda?dia=${dia}`} />
       ) : (
-        <button type="button" aria-label="Atrás" className={backClass} onClick={() => setStep((value) => value - 1)}>
-          <BackArrow />
-        </button>
+        <BotonAtras onClick={() => setStep((value) => value - 1)} />
       )}
       <h1 className="mt-3 font-serif text-4xl text-forest">{meta.title}</h1>
       <p className="mt-2 text-muted">
@@ -399,10 +389,7 @@ export function NuevoTurno({ dia }: { dia: string }) {
             id="telefono"
             inputMode="tel"
             value={phone}
-            onChange={(event) => {
-              setPhone(event.target.value);
-              setReminder(telefonoValido(event.target.value));
-            }}
+            onChange={(event) => setPhone(event.target.value)}
             className="min-h-12 rounded-xl border border-sand bg-white px-4 text-lg text-forest"
           />
         </div>
@@ -480,15 +467,6 @@ export function NuevoTurno({ dia }: { dia: string }) {
               <dd>{reason.trim() || "Consulta"}</dd>
             </div>
           </dl>
-          <label className="mt-4 flex items-start gap-3">
-            <input
-              type="checkbox"
-              checked={reminder}
-              onChange={(event) => setReminder(event.target.checked)}
-              className="mt-1 h-5 w-5 accent-forest"
-            />
-            <span>Avisar por WhatsApp el día anterior.</span>
-          </label>
         </div>
       ) : null}
 
@@ -546,15 +524,7 @@ export function NuevoTurno({ dia }: { dia: string }) {
   );
 }
 
-const backClass = "inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-sand bg-white text-forest";
 
-function BackArrow() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2.2">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M19 12H5M12 19l-7-7 7-7" />
-    </svg>
-  );
-}
 
 function Chevron({ direction }: { direction: "left" | "right" }) {
   return (

@@ -10,6 +10,11 @@ const doors = [
     text: "Cargá los turnos del consultorio",
   },
   {
+    href: "/consultorio/mensajes",
+    title: "Mis mensajes de WhatsApp",
+    text: "Confirmación y recordatorio de turnos",
+  },
+  {
     href: "/consultorio/pacientes",
     title: "Pacientes",
     text: "Fichas, historia clínica y odontograma",
@@ -31,8 +36,8 @@ const doors = [
   },
   {
     href: "/consultorio/consentimientos",
-    title: "Hojas para firmar",
-    text: "Para imprimir en la computadora",
+    title: "Consentimientos",
+    text: "Los textos que leen y firman tus pacientes",
   },
 ] as const;
 

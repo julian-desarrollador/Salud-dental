@@ -1,5 +1,6 @@
 import { fechaEnPalabras } from "@/lib/consultorio/fecha";
 import {
+  bordesDelMedio,
   cuadrantes,
   estadoDePieza,
   nombreEstado,
@@ -96,17 +97,17 @@ export function OdontogramaPiezasLectura({ piezas }: { piezas: Piezas }) {
   const conSinIndicar = Object.values(piezas).some((lista) => (lista ?? []).some((item) => item.estado === ""));
   return (
     <div className="space-y-4 [print-color-adjust:exact]">
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-2 sm:gap-0">
         {cuadrantes.map((cuadrante) => (
-          <div key={cuadrante.title}>
+          <div key={cuadrante.title} className={`border-sand ${bordesDelMedio(cuadrante, "sm")}`}>
             <p className="text-sm text-muted">{cuadrante.title}</p>
-            <div className="mt-2 grid grid-cols-8 gap-1">
+            <div className={`mt-2 grid grid-cols-8 gap-1 ${cuadrante.lado === "derecha" ? "[direction:rtl]" : ""}`}>
               {cuadrante.teeth.map((pieza) => (
                 <div
                   key={pieza}
                   role="img"
                   aria-label={describirPieza(pieza, piezas[pieza])}
-                  className="flex flex-col overflow-hidden rounded border border-sand bg-white text-center text-xs text-forest"
+                  className="flex min-w-0 flex-col overflow-hidden rounded border border-sand bg-white text-center text-xs text-forest [direction:ltr]"
                 >
                   <ContenidoPieza pieza={pieza} lista={piezas[pieza]} max={1} />
                 </div>

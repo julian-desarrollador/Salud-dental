@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
 import { savePreguntasMedicas } from "@/app/consultorio/actions";
 import { Confirmacion } from "@/components/consultorio/confirmacion";
@@ -14,6 +13,7 @@ import {
   sanitizePreguntas,
 } from "@/lib/consultorio/preguntas";
 import type { PreguntaMedica, RespuestaSiNo, TipoPregunta } from "@/lib/consultorio/types";
+import { BotonAtras } from "@/components/consultorio/boton-atras";
 
 const accion =
   "inline-flex min-h-10 cursor-pointer items-center justify-center rounded-full border border-forest bg-white px-4 text-base text-forest disabled:cursor-default disabled:opacity-40";
@@ -176,16 +176,14 @@ export function PreguntasEditor({ initial, volver }: { initial: PreguntaMedica[]
 
   return (
     <div>
-      <Link href={volver} className="inline-flex h-11 items-center justify-center rounded-2xl border border-sand bg-white px-4 text-forest">
-        Atrás
-      </Link>
+      <BotonAtras href={volver} />
       <h1 className="mt-3 font-serif text-4xl text-forest md:text-5xl">Mis preguntas</h1>
       <span className="mt-4 block h-0.5 w-16 bg-gold" />
       <p className="mt-6 text-forest">
         Esta lista aparece en los antecedentes médicos de todas las fichas. Si cambiás o quitás una pregunta, las respuestas que ya guardaste quedan en cada ficha.
       </p>
       {notice ? (
-        <p className="fixed inset-x-0 bottom-20 z-30 bg-sand py-3 text-center text-forest md:bottom-0" role="status">
+        <p className="fixed inset-x-0 bottom-20 z-30 bg-sand py-3 text-center text-forest" role="status">
           {notice}
         </p>
       ) : null}

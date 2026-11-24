@@ -232,8 +232,10 @@ export async function crearTurno(input: TurnoNuevo) {
     updatedAt: now,
   };
   await (await turnos()).insertOne({ ...turno });
-  const whatsappEnviado = reminder ? await enviarAsignacion(turno) : true;
-  if (whatsappEnviado && reminder) {
+  // Sin Twilio configurado, Jesica lo manda a mano desde la agenda: no es un error.
+  const automatico = reminder && configTwilio(process.env.TWILIO_ASSIGNMENT_CONTENT_SID) !== null;
+  const whatsappEnviado = automatico ? await enviarAsignacion(turno) : true;
+  if (whatsappEnviado && automatico) {
     turno.waAssignmentSentAt = new Date().toISOString();
     await (await turnos()).updateOne({ id: turno.id }, { $set: { waAssignmentSentAt: turno.waAssignmentSentAt } });
   }
@@ -267,6 +269,19 @@ export async function cancelarTurno(id: string) {
   const result = await (await turnos()).updateOne(
     { id, status: "confirmed" },
     { $set: { status: "cancelled", updatedAt: new Date().toISOString() } },
+  );
+  if (result.matchedCount === 0) throw new Error("No encontré este turno.");
+}
+
+export type AvisoTurno = "confirmacion" | "recordatorio";
+
+/** Marca (o desmarca) que Jesica mandó a mano el WhatsApp de confirmación o el recordatorio. */
+export async function marcarAvisoTurno(id: string, aviso: AvisoTurno, enviado: boolean) {
+  await prepare();
+  const campo = aviso === "confirmacion" ? "waAssignmentSentAt" : "waReminder24hSentAt";
+  const result = await (await turnos()).updateOne(
+    { id },
+    { $set: { [campo]: enviado ? new Date().toISOString() : null, updatedAt: new Date().toISOString() } },
   );
   if (result.matchedCount === 0) throw new Error("No encontré este turno.");
 }

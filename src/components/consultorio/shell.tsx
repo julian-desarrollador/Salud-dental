@@ -6,7 +6,7 @@ const links = [
   { href: "/consultorio/agenda", label: "Agenda", short: "Agenda", icon: "calendar" },
   { href: "/consultorio/pacientes", label: "Pacientes", short: "Pacientes", icon: "person" },
   { href: "/consultorio/presupuesto", label: "Presupuesto", short: "Presupuesto", icon: "tag" },
-  { href: "/consultorio/consentimientos", label: "Hojas para firmar", short: "Firmar", icon: "sheet" },
+  { href: "/consultorio/consentimientos", label: "Consentimientos", short: "Firmar", icon: "sheet" },
 ] as const;
 
 function TabIcon({ name, filled }: { name: (typeof links)[number]["icon"]; filled: boolean }) {
@@ -78,9 +78,9 @@ export function ConsultorioShell({
   children: React.ReactNode;
   current?: string;
 }) {
-  // Abajo queda lugar para la barra de navegación del celular y para el aviso fijo de "Guardado".
+  // Abajo queda lugar para la barra de navegación y para el aviso fijo de "Guardado".
   return (
-    <div className="min-h-full pb-[calc(9.5rem+env(safe-area-inset-bottom))] md:pb-20 print:pb-0">
+    <div className="min-h-full pb-[calc(9.5rem+env(safe-area-inset-bottom))] print:pb-0">
       <header className="border-b border-sand bg-cream px-6 py-4 print:hidden">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4">
           <p className="font-serif text-3xl leading-none text-forest">Consultorio</p>
@@ -91,28 +91,14 @@ export function ConsultorioShell({
             <SalirButton />
           </div>
         </div>
-        <nav aria-label="Consultorio" className="mx-auto mt-4 hidden max-w-6xl md:block">
-          <ul className="flex flex-wrap gap-x-6 gap-y-2">
-            {links.map((link) => (
-              <li key={link.href}>
-                <Link
-                  href={link.href}
-                  aria-current={current === link.href ? "page" : undefined}
-                  className={`inline-flex h-12 items-center ${current === link.href ? "text-forest underline decoration-gold underline-offset-8" : "text-forest"}`}
-                >
-                  {link.label}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </nav>
       </header>
       <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">{children}</div>
+      {/* Un solo menú, fijo abajo, en el celular y en la computadora. */}
       <nav
         aria-label="Consultorio"
-        className="fixed inset-x-0 bottom-0 z-40 border-t border-sand bg-cream pb-[env(safe-area-inset-bottom)] print:hidden md:hidden"
+        className="fixed inset-x-0 bottom-0 z-40 border-t border-sand bg-cream pb-[env(safe-area-inset-bottom)] print:hidden"
       >
-        <ul className="grid grid-cols-5">
+        <ul className="mx-auto grid max-w-3xl grid-cols-5">
           {links.map((link) => {
             const active = current === link.href;
             return (
@@ -120,10 +106,11 @@ export function ConsultorioShell({
                 <Link
                   href={link.href}
                   aria-current={active ? "page" : undefined}
-                  className={`flex h-16 flex-col items-center justify-center gap-1 whitespace-nowrap text-[11px] min-[360px]:text-xs min-[412px]:text-sm ${active ? "text-forest" : "text-muted"}`}
+                  className={`flex h-16 flex-col items-center justify-center gap-1 whitespace-nowrap text-[11px] hover:text-forest min-[360px]:text-xs min-[412px]:text-sm md:text-base ${active ? "text-forest" : "text-muted"}`}
                 >
                   <TabIcon name={link.icon} filled={active} />
-                  {link.short}
+                  <span className="md:hidden">{link.short}</span>
+                  <span className="hidden md:inline">{link.label}</span>
                 </Link>
               </li>
             );

@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useEffect } from "react";
-import { CancelarTurno, QuitarBloqueo } from "@/components/consultorio/agenda-acciones";
+import { AvisosTurno, CancelarTurno, QuitarBloqueo } from "@/components/consultorio/agenda-acciones";
 import type { Bloqueo, Turno } from "@/lib/consultorio/agenda";
+import type { MensajesTurno } from "@/lib/consultorio/avisos-turno";
 import {
   diaCorto,
   diaDeSemana,
@@ -18,6 +19,8 @@ export function AgendaVista({
   year,
   month,
   dia,
+  hoy,
+  mensajes,
   canceladas,
   whatsappFallo,
   turnos,
@@ -26,6 +29,8 @@ export function AgendaVista({
   year: number;
   month: number;
   dia: string;
+  hoy: string;
+  mensajes: MensajesTurno;
   canceladas: boolean;
   whatsappFallo: boolean;
   turnos: Turno[];
@@ -107,13 +112,22 @@ export function AgendaVista({
           Bloquear horario
         </Link>
       </div>
-      <Link
-        href="/consultorio/pacientes"
-        className="mt-3 flex h-12 items-center justify-center gap-2 rounded-2xl border border-sand bg-white text-forest"
-      >
-        <PersonIcon />
-        Pacientes
-      </Link>
+      <div className="mt-3 grid grid-cols-2 gap-3">
+        <Link
+          href="/consultorio/pacientes"
+          className="flex h-12 items-center justify-center gap-2 rounded-2xl border border-sand bg-white text-forest"
+        >
+          <PersonIcon />
+          Pacientes
+        </Link>
+        <Link
+          href={`/consultorio/mensajes?volver=${encodeURIComponent(`${hrefAgenda(mes, dia, canceladas)}#dia-elegido`)}`}
+          className="flex h-12 items-center justify-center gap-2 rounded-2xl border border-sand bg-white text-forest"
+        >
+          <ChatIcon />
+          Mensajes
+        </Link>
+      </div>
 
       <section className="mt-5 rounded-[22px] border border-sand bg-white p-4 lg:p-5">
         <div className="relative mb-3 flex items-center justify-center px-12">
@@ -213,21 +227,7 @@ export function AgendaVista({
                 <h2 className="mt-2 font-serif text-3xl leading-tight text-forest">{fila.turno.patientName}</h2>
                 {fila.turno.status === "cancelled" ? <p className="mt-1 text-[#6b2e2a]">Cancelada</p> : null}
                 <p className="mt-3 text-forest">{fila.turno.reason}</p>
-                <p className="mt-3 rounded-xl border border-sand bg-cream px-3 py-2.5 text-forest">
-                  <span className="block">
-                    Asignación de turno: {fila.turno.status === "cancelled" ? "No se envía" : fila.turno.waAssignmentSentAt ? "Enviada" : "No enviada"}
-                  </span>
-                  <span className="mt-1 block">
-                    Recordatorio 24h:{" "}
-                    {fila.turno.status === "cancelled"
-                      ? "No se envía"
-                      : !fila.turno.reminder
-                        ? "Sin recordatorio"
-                        : fila.turno.waReminder24hSentAt
-                          ? "Enviado"
-                          : "Aún no enviado"}
-                  </span>
-                </p>
+                {fila.turno.status === "confirmed" ? <AvisosTurno turno={fila.turno} hoy={hoy} mensajes={mensajes} /> : null}
                 <div className="mt-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-3 border-t border-sand pt-4">
                   <Link
                     href={`/consultorio/pacientes/${fila.turno.patientId}?volver=${encodeURIComponent(`${hrefAgenda(mes, dia, canceladas)}#dia-elegido`)}`}
@@ -277,6 +277,15 @@ function SheetIcon() {
     <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.8">
       <path strokeLinecap="round" strokeLinejoin="round" d="M7 3.5h7l5 5V20a1.5 1.5 0 0 1-1.5 1.5h-10.5A1.5 1.5 0 0 1 5.5 20V5A1.5 1.5 0 0 1 7 3.5Z" />
       <path strokeLinecap="round" d="M14 3.5V9h5.5M8.5 13h7M8.5 16.5h5" />
+    </svg>
+  );
+}
+
+function ChatIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 19.5l1.2-3.6A8 8 0 1 1 8.6 18.6L4.5 19.5Z" />
+      <path strokeLinecap="round" d="M9 10.5h6M9 13.5h4" />
     </svg>
   );
 }
